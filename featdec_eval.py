@@ -6,7 +6,7 @@ from itertools import product
 import os
 import re
 
-from bdpy.dataform import Features, DecodedFeatures
+from bdpy.dataform import Features, DecodedFeatures, SQLite3KeyValueStore
 from bdpy.evals.metrics import profile_correlation, pattern_correlation, pairwise_identification
 import hdf5storage
 import numpy as np
@@ -16,10 +16,15 @@ import yaml
 
 # Main #######################################################################
 
+class ResultsStore(SQLite3KeyValueStore):
+    """Results store for feature decoding evaluation."""
+    pass
+
+
 def featdec_eval(
         decoded_feature_dir,
         true_feature_dir,
-        output_file='./accuracy.pkl.gz',
+        output_file='./evaluation.db',
         subjects=None,
         rois=None,
         features=None,
@@ -68,17 +73,18 @@ def featdec_eval(
     # Decoded features
     decoded_features = DecodedFeatures(decoded_feature_dir)
 
+    # Metrics ################################################################
+    metrics = ['profile_correlation', 'pattern_correlation', 'identification_accuracy']
+
     # Evaluating decoding performances #######################################
 
     if os.path.exists(output_file):
         print('Loading {}'.format(output_file))
-        perf_df = pd.read_pickle(output_file)
+        results_db = ResultsStore(output_file)
     else:
-        print('Creating an empty dataframe')
-        perf_df = pd.DataFrame(columns=[
-            'layer', 'subject', 'roi',
-            'profile correlation', 'pattern correlation', 'identification accuracy'
-        ])
+        print('Creating new evaluation result store')
+        keys = ["layer", "subject", "roi", "metric"]
+        results_db = ResultsStore(output_file, keys=keys)
 
     for layer in features:
         print('Layer: {}'.format(layer))
@@ -89,14 +95,15 @@ def featdec_eval(
         for subject, roi in product(subjects, rois):
             print('Subject: {} - ROI: {}'.format(subject, roi))
 
-            if len(perf_df.query(
-                    'layer == "{}" and subject == "{}" and roi == "{}"'.format(
-                        layer, subject, roi
-                    )
-            )) > 0:
+            # Check if the evaluation is already done
+            exists = True
+            for metric in metrics:
+                exists = exists and results_db.exists(layer=layer, subject=subject, roi=roi, metric=metric)
+            if exists:
                 print('Already done. Skipped.')
                 continue
 
+            # Load decoded features
             pred_y = decoded_features.get(layer=layer, subject=subject, roi=roi)
             pred_labels = decoded_features.selected_label
 
@@ -120,35 +127,30 @@ def featdec_eval(
             train_y_mean = hdf5storage.loadmat(os.path.join(norm_param_dir, 'y_mean.mat'))['y_mean']
             train_y_std = hdf5storage.loadmat(os.path.join(norm_param_dir, 'y_norm.mat'))['y_norm']
 
-            r_prof = profile_correlation(pred_y, true_y_sorted)
-            r_patt = pattern_correlation(pred_y, true_y_sorted, mean=train_y_mean, std=train_y_std)
+            # Evaluation ---------------------------
 
-            if single_trial:
-                ident = pairwise_identification(pred_y, true_y, single_trial=True, pred_labels=pred_labels, true_labels=true_labels)
-            else:
-                ident = pairwise_identification(pred_y, true_y_sorted)
+            # Profile correlation
+            if not results_db.exists(layer=layer, subject=subject, roi=roi, metric='profile_correlation'):
+                r_prof = profile_correlation(pred_y, true_y_sorted)
+                results_db.set(layer=layer, subject=subject, roi=roi, metric='profile_correlation', value=r_prof)
 
+            # Pattern correlation
+            if not results_db.exists(layer=layer, subject=subject, roi=roi, metric='pattern_correlation'):
+                r_patt = pattern_correlation(pred_y, true_y_sorted, mean=train_y_mean, std=train_y_std)
+                results_db.set(layer=layer, subject=subject, roi=roi, metric='pattern_correlation', value=r_patt)
+
+            # Pair-wise identification accuracy
+            if not results_db.exists(layer=layer, subject=subject, roi=roi, metric='identification_accuracy'):
+                if single_trial:
+                    ident = pairwise_identification(pred_y, true_y, single_trial=True, pred_labels=pred_labels, true_labels=true_labels)
+                else:
+                    ident = pairwise_identification(pred_y, true_y_sorted)
+                results_db.set(layer=layer, subject=subject, roi=roi, metric='identification_accuracy', value=ident)
+
+            # Summary
             print('Mean profile correlation:     {}'.format(np.nanmean(r_prof)))
             print('Mean pattern correlation:     {}'.format(np.nanmean(r_patt)))
             print('Mean identification accuracy: {}'.format(np.nanmean(ident)))
-
-            perf_df = perf_df.append(
-                {
-                    'layer':   layer,
-                    'subject': subject,
-                    'roi':     roi,
-                    'profile correlation': r_prof.flatten(),
-                    'pattern correlation': r_patt.flatten(),
-                    'identification accuracy': ident.flatten(),
-                },
-                ignore_index=True
-            )
-
-    print(perf_df)
-
-    # Save the results
-    perf_df.to_pickle(output_file, compression='gzip')
-    print('Saved {}'.format(output_file))
 
     print('All done')
 
@@ -175,15 +177,8 @@ if __name__ == '__main__':
         '__filename__': os.path.splitext(os.path.basename(conf_file))[0]
     })
 
-    if 'analysis name' in conf:
-        analysis_name = conf['analysis name']
-    else:
-        analysis_name = ''
-
     decoded_feature_dir = os.path.join(
         conf['decoded feature dir'],
-        analysis_name,
-        'decoded_features',
         conf['network']
     )
 
@@ -200,14 +195,13 @@ if __name__ == '__main__':
     featdec_eval(
         decoded_feature_dir,
         os.path.join(conf['test feature dir'][0], conf['network']),
-        output_file=os.path.join(decoded_feature_dir, 'accuracy.pkl.gz'),
+        output_file=os.path.join(decoded_feature_dir, 'evaluation.db'),
         subjects=list(conf['test fmri'].keys()),
         rois=list(conf['rois'].keys()),
         features=conf['layers'],
         feature_index_file=feature_index_file,
         feature_decoder_dir=os.path.join(
             conf['feature decoder dir'],
-            analysis_name,
             conf['network']
         ),
         single_trial=single_trial
