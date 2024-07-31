@@ -131,29 +131,27 @@ def featdec_eval(
 
             # Profile correlation
             if not results_db.exists(layer=layer, subject=subject, roi=roi, metric='profile_correlation'):
-                results_db.set(layer=layer, subject=subject, roi=roi, metric='profile_correlation', value=[])
+                results_db.set(layer=layer, subject=subject, roi=roi, metric='profile_correlation', value=np.array([]))
                 r_prof = profile_correlation(pred_y, true_y_sorted)
                 results_db.set(layer=layer, subject=subject, roi=roi, metric='profile_correlation', value=r_prof)
+                print('Mean profile correlation:     {}'.format(np.nanmean(r_prof)))
 
             # Pattern correlation
             if not results_db.exists(layer=layer, subject=subject, roi=roi, metric='pattern_correlation'):
-                results_db.set(layer=layer, subject=subject, roi=roi, metric='pattern_correlation', value=[])
+                results_db.set(layer=layer, subject=subject, roi=roi, metric='pattern_correlation', value=np.array([]))
                 r_patt = pattern_correlation(pred_y, true_y_sorted, mean=train_y_mean, std=train_y_std)
                 results_db.set(layer=layer, subject=subject, roi=roi, metric='pattern_correlation', value=r_patt)
+                print('Mean pattern correlation:     {}'.format(np.nanmean(r_patt)))
 
             # Pair-wise identification accuracy
             if not results_db.exists(layer=layer, subject=subject, roi=roi, metric='identification_accuracy'):
-                results_db.set(layer=layer, subject=subject, roi=roi, metric='identification_accuracy', value=[])
+                results_db.set(layer=layer, subject=subject, roi=roi, metric='identification_accuracy', value=np.array([]))
                 if single_trial:
                     ident = pairwise_identification(pred_y, true_y, single_trial=True, pred_labels=pred_labels, true_labels=true_labels)
                 else:
                     ident = pairwise_identification(pred_y, true_y_sorted)
                 results_db.set(layer=layer, subject=subject, roi=roi, metric='identification_accuracy', value=ident)
-
-            # Summary
-            print('Mean profile correlation:     {}'.format(np.nanmean(r_prof)))
-            print('Mean pattern correlation:     {}'.format(np.nanmean(r_patt)))
-            print('Mean identification accuracy: {}'.format(np.nanmean(ident)))
+                print('Mean identification accuracy: {}'.format(np.nanmean(ident)))
 
     print('All done')
 
