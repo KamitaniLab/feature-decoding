@@ -1,0 +1,6 @@
+bdpy>=0.23
+fastl2lir
+matplotlib
+numpy
+tqdm
+
