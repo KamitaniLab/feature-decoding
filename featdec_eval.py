@@ -1,17 +1,16 @@
 '''Feature decoding evaluation.'''
 
 
-import argparse
 from itertools import product
 import os
 import re
 
 from bdpy.dataform import Features, DecodedFeatures, SQLite3KeyValueStore
 from bdpy.evals.metrics import profile_correlation, pattern_correlation, pairwise_identification
+from bdpy.pipeline.config import init_hydra_cfg
 import hdf5storage
 import numpy as np
 import pandas as pd
-import yaml
 
 
 # Main #######################################################################
@@ -22,22 +21,22 @@ class ResultsStore(SQLite3KeyValueStore):
 
 
 def featdec_eval(
-        decoded_feature_dir,
-        true_feature_dir,
+        decoded_feature_path,
+        true_feature_path,
         output_file='./evaluation.db',
         subjects=None,
         rois=None,
         features=None,
         feature_index_file=None,
-        feature_decoder_dir=None,
-        single_trial=False
+        feature_decoder_path=None,
+        average_sample=True,
 ):
     '''Evaluation of feature decoding.
 
     Input:
 
-    - deocded_feature_dir
-    - true_feature_dir
+    - deocded_feature_path
+    - true_feature_path
 
     Output:
 
@@ -52,9 +51,9 @@ def featdec_eval(
     print('Subjects: {}'.format(subjects))
     print('ROIs:     {}'.format(rois))
     print('')
-    print('Decoded features: {}'.format(decoded_feature_dir))
+    print('Decoded features: {}'.format(decoded_feature_path))
     print('')
-    print('True features (Test): {}'.format(true_feature_dir))
+    print('True features (Test): {}'.format(true_feature_path))
     print('')
     print('Layers: {}'.format(features))
     print('')
@@ -66,12 +65,12 @@ def featdec_eval(
 
     # True features
     if feature_index_file is not None:
-        features_test = Features(true_feature_dir, feature_index=feature_index_file)
+        features_test = Features(true_feature_path, feature_index=feature_index_file)
     else:
-        features_test = Features(true_feature_dir)
+        features_test = Features(true_feature_path)
 
     # Decoded features
-    decoded_features = DecodedFeatures(decoded_feature_dir)
+    decoded_features = DecodedFeatures(decoded_feature_path)
 
     # Metrics ################################################################
     metrics = ['profile_correlation', 'pattern_correlation', 'identification_accuracy']
@@ -88,7 +87,7 @@ def featdec_eval(
 
     for layer in features:
         print('Layer: {}'.format(layer))
-        
+
         true_y = features_test.get(layer=layer)
         true_labels = features_test.labels
 
@@ -107,7 +106,7 @@ def featdec_eval(
             pred_y = decoded_features.get(layer=layer, subject=subject, roi=roi)
             pred_labels = decoded_features.selected_label
 
-            if single_trial:
+            if not average_sample:
                 pred_labels = [re.match('sample\d*-(.*)', x).group(1) for x in pred_labels]
 
             if not np.array_equal(pred_labels, true_labels):
@@ -119,7 +118,7 @@ def featdec_eval(
             # Load Y mean and SD
             # Proposed by Ken Shirakawa. See https://github.com/KamitaniLab/brain-decoding-cookbook/issues/13.
             norm_param_dir = os.path.join(
-                feature_decoder_dir,
+                feature_decoder_path,
                 layer, subject, roi,
                 'model'
             )
@@ -146,10 +145,10 @@ def featdec_eval(
             # Pair-wise identification accuracy
             if not results_db.exists(layer=layer, subject=subject, roi=roi, metric='identification_accuracy'):
                 results_db.set(layer=layer, subject=subject, roi=roi, metric='identification_accuracy', value=np.array([]))
-                if single_trial:
-                    ident = pairwise_identification(pred_y, true_y, single_trial=True, pred_labels=pred_labels, true_labels=true_labels)
-                else:
+                if average_sample:
                     ident = pairwise_identification(pred_y, true_y_sorted)
+                else:
+                    ident = pairwise_identification(pred_y, true_y, single_trial=True, pred_labels=pred_labels, true_labels=true_labels)
                 results_db.set(layer=layer, subject=subject, roi=roi, metric='identification_accuracy', value=ident)
                 print('Mean identification accuracy: {}'.format(np.nanmean(ident)))
 
@@ -161,49 +160,28 @@ def featdec_eval(
 # Entry point ################################################################
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        'conf',
-        type=str,
-        help='analysis configuration file',
-    )
-    args = parser.parse_args()
 
-    conf_file = args.conf
+    cfg = init_hydra_cfg()
 
-    with open(conf_file, 'r') as f:
-        conf = yaml.safe_load(f)
+    decoded_feature_path = cfg["decoded_feature"]["path"]
+    target_feature_path = cfg["decoded_feature"]["target"]["paths"][0]  # FIXME
+    feature_decoder_path = cfg["decoded_feature"]["decoder"]["path"]
 
-    conf.update({
-        '__filename__': os.path.splitext(os.path.basename(conf_file))[0]
-    })
+    subjects = [s["name"] for s in cfg["decoded_feature"]["test_fmri"]["subjects"]]
+    rois = [r["name"] for r in cfg["decoded_feature"]["test_fmri"]["rois"]]
+    features = cfg["decoded_feature"]["target"]["layers"]
 
-    decoded_feature_dir = os.path.join(
-        conf['decoded feature dir'],
-        conf['network']
-    )
-
-    if 'feature index file' in conf:
-        feature_index_file = os.path.join(conf['training feature dir'][0], conf['network'], conf['feature index file'])
-    else:
-        feature_index_file = None
-
-    if 'test single trial' in conf:
-        single_trial = conf['test single trial']
-    else:
-        single_trial = False
+    feature_index_file = cfg.decoder.target.get("index_file", None)
+    average_sample = cfg["decoded_feature"]["parameters"]["average_sample"]
 
     featdec_eval(
-        decoded_feature_dir,
-        os.path.join(conf['test feature dir'][0], conf['network']),
-        output_file=os.path.join(decoded_feature_dir, 'evaluation.db'),
-        subjects=list(conf['test fmri'].keys()),
-        rois=list(conf['rois'].keys()),
-        features=conf['layers'],
+        decoded_feature_path,
+        target_feature_path,
+        output_file=os.path.join(decoded_feature_path, 'evaluation.db'),
+        subjects=subjects,
+        rois=rois,
+        features=features,
         feature_index_file=feature_index_file,
-        feature_decoder_dir=os.path.join(
-            conf['feature decoder dir'],
-            conf['network']
-        ),
-        single_trial=single_trial
+        feature_decoder_path=feature_decoder_path,
+        average_sample=average_sample
     )
