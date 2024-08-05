@@ -8,7 +8,6 @@ import os
 import shutil
 from time import time
 import warnings
-import argparse
 
 import bdpy
 from bdpy.bdata.utils import select_data_multi_bdatas, get_labels_multi_bdatas
@@ -31,7 +30,7 @@ def featdec_sklearn_ridge_train(
         output_dir: Optional[str] = './feature_decoders',
         rois: Optional[Dict[str, str]] = None,
         label_key: Optional[str] = None,
-        features: Optional[List[str]] = None,
+        layers: Optional[List[str]] = None,
         feature_index_file: Optional[str] = None,
         alpha: int = 100,
         chunk_axis: int = 1,
@@ -59,16 +58,16 @@ def featdec_sklearn_ridge_train(
     '''
     if rois is None:
         rois = {}
-    if features is None:
-        features = []
+    if layers is None:
+        layers = []
 
-    features = features[::-1]  # Start training from deep layers
+    layers = layers[::-1]  # Start training from deep layers
 
     # Print info -------------------------------------------------------------
     print('Subjects:        %s' % list(fmri_data.keys()))
     print('ROIs:            %s' % list(rois.keys()))
     print('Target features: %s' % features_paths)
-    print('Layers:          %s' % features)
+    print('Layers:          %s' % layers)
     print('')
 
     # Load data --------------------------------------------------------------
@@ -96,16 +95,16 @@ def featdec_sklearn_ridge_train(
     print('----------------------------------------')
     print('Analysis loop')
 
-    for feat, sbj, roi in product(features, fmri_data, rois):
+    for layer, sbj, roi in product(layers, fmri_data, rois):
         print('--------------------')
-        print('Feature:    %s' % feat)
+        print('Feature:    %s' % layer)
         print('Subject:    %s' % sbj)
         print('ROI:        %s' % roi)
 
         # Setup
         # -----
-        analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + feat
-        results_dir = os.path.join(output_dir, feat, sbj, roi, 'model')
+        analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + layer
+        results_dir = os.path.join(output_dir, layer, sbj, roi, 'model')
         makedir_ifnot(results_dir)
 
         # Check whether the analysis has been done or not.
@@ -135,7 +134,7 @@ def featdec_sklearn_ridge_train(
 
         # Target features and image labels (file names)
         y_labels = np.unique(x_labels)
-        y = get_multi_features(data_features, feat, labels=y_labels)  # Target DNN features
+        y = get_multi_features(data_features, layer, labels=y_labels)  # Target DNN features
 
         # Use x that has a label included in y
         x = np.vstack([_x for _x, xl in zip(x, x_labels) if xl in y_labels])
@@ -222,27 +221,27 @@ if __name__ == '__main__':
 
     training_fmri = {
         subject["name"]: subject["paths"]
-        for subject in cfg["decoder"]["training_fmri"]["subjects"]
+        for subject in cfg["decoder"]["fmri"]["subjects"]
     }
     rois = {
         roi["name"]: roi["select"]
-        for roi in cfg["decoder"]["training_fmri"]["rois"]
+        for roi in cfg["decoder"]["fmri"]["rois"]
     }
-    label_key = cfg["decoder"]["training_fmri"]["label_key"]
+    label_key = cfg["decoder"]["fmri"]["label_key"]
 
-    training_target = cfg["decoder"]["target"]["paths"]
-    features = cfg["decoder"]["target"]["layers"]
-    feature_index_file = cfg.decoder.target.get("index_file", None)
+    training_features = cfg["decoder"]["features"]["paths"]
+    layers = cfg["decoder"]["features"]["layers"]
+    feature_index_file = cfg.decoder.features.get("index_file", None)
 
     decoder_dir = cfg["decoder"]["path"]
 
     featdec_sklearn_ridge_train(
         training_fmri,
-        training_target,
+        training_features,
         output_dir=decoder_dir,
         rois=rois,
         label_key=label_key,
-        features=features,
+        layers=layers,
         feature_index_file=feature_index_file,
         alpha=cfg["decoder"]["parameters"]["alpha"],
         chunk_axis=cfg["decoder"]["parameters"]["chunk_axis"],

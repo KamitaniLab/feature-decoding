@@ -26,7 +26,7 @@ def featdec_predict(
         output_dir='./decoded_features',
         rois=None,
         label_key=None,
-        features=None,
+        layers=None,
         feature_index_file=None,
         excluded_labels=[],
         average_sample=True,
@@ -48,13 +48,13 @@ def featdec_predict(
 
     TBA
     '''
-    features = features[::-1]  # Start training from deep layers
+    layers = layers[::-1]  # Start training from deep layers
 
     # Print info -------------------------------------------------------------
     print('Subjects:        %s' % list(fmri_data.keys()))
     print('ROIs:            %s' % list(rois.keys()))
     print('Decoders:        %s' % decoder_path)
-    print('Layers:          %s' % features)
+    print('Layers:          %s' % layers)
     print('')
 
     # Load data --------------------------------------------------------
@@ -78,16 +78,16 @@ def featdec_predict(
     print('----------------------------------------')
     print('Analysis loop')
 
-    for feat, sbj, roi in product(features, fmri_data, rois):
+    for layer, sbj, roi in product(layers, fmri_data, rois):
         print('--------------------')
-        print('Feature:    %s' % feat)
+        print('Feature:    %s' % layer)
         print('Subject:    %s' % sbj)
         print('ROI:        %s' % roi)
 
         # Distributed computation setup
         # -----------------------------
-        analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + feat
-        results_dir_prediction = os.path.join(output_dir, feat, sbj, roi)
+        analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + layer
+        results_dir_prediction = os.path.join(output_dir, layer, sbj, roi)
 
         if os.path.exists(results_dir_prediction):
             print('%s is already done. Skipped.' % analysis_id)
@@ -129,7 +129,7 @@ def featdec_predict(
 
         # Model directory
         # ---------------
-        model_dir = os.path.join(decoder_path, feat, sbj, roi, 'model')
+        model_dir = os.path.join(decoder_path, layer, sbj, roi, 'model')
 
         # Preprocessing
         # -------------
@@ -198,22 +198,23 @@ if __name__ == '__main__':
 
     test_fmri_data = {
         subject["name"]: subject["paths"]
-        for subject in cfg["decoded_feature"]["test_fmri"]["subjects"]
+        for subject in cfg["decoded_feature"]["fmri"]["subjects"]
     }
-    test_target = cfg["decoded_feature"]["target"]["paths"]
-    decoder_path = cfg["decoded_feature"]["decoder"]["path"]
-    decoded_feature_dir = cfg["decoded_feature"]["path"]
     rois = {
         roi["name"]: roi["select"]
-        for roi in cfg["decoded_feature"]["test_fmri"]["rois"]
+        for roi in cfg["decoded_feature"]["fmri"]["rois"]
     }
-    label_key = cfg["decoded_feature"]["test_fmri"]["label_key"]
-    features = cfg["decoded_feature"]["target"]["layers"]
+    label_key = cfg["decoded_feature"]["fmri"]["label_key"]
 
-    feature_index_file = cfg.decoder.target.get("index_file", None)
+    test_features = cfg["decoded_feature"]["features"]["paths"]
+    layers = cfg["decoded_feature"]["features"]["layers"]
+    feature_index_file = cfg.decoder.features.get("index_file", None)
 
+    decoder_path = cfg["decoded_feature"]["decoder"]["path"]
+
+    decoded_feature_dir = cfg["decoded_feature"]["path"]
     average_sample = cfg["decoded_feature"]["parameters"]["average_sample"]
-    excluded_labels = cfg.decoded_feature.test_fmri.get("exclude_labels", [])
+    excluded_labels = cfg.decoded_feature.fmri.get("exclude_labels", [])
 
     featdec_predict(
         test_fmri_data,
@@ -221,7 +222,7 @@ if __name__ == '__main__':
         output_dir=decoded_feature_dir,
         rois=rois,
         label_key=label_key,
-        features=features,
+        layers=layers,
         feature_index_file=feature_index_file,
         excluded_labels=excluded_labels,
         average_sample=average_sample,
