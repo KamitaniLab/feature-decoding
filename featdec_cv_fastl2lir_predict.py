@@ -1,49 +1,48 @@
-'''DNN Feature decoding (corss-validation) prediction program'''
+'''DNN Feature decoding (corss-validation) prediction scripts.'''
 
 
-from __future__ import print_function
+from typing import Dict, List, Optional
 
 from itertools import product
 import os
 import shutil
 from time import time
-import warnings
-import argparse
 
 import bdpy
 from bdpy.dataform import load_array, save_array
 from bdpy.distcomp import DistComp
 from bdpy.ml import ModelTest
 from bdpy.ml.crossvalidation import make_cvindex_generator
+from bdpy.pipeline.config import init_hydra_cfg
 from bdpy.util import makedir_ifnot
 from fastl2lir import FastL2LiR
 import numpy as np
-import yaml
 
 
 # Main #######################################################################
 
 def featdec_cv_fastl2lir_predict(
-        fmri_data_files,
-        feature_decoder_dir,
+        fmri_data,
+        decoder_path,
         output_dir='./feature_decoding_cv',
-        rois_list=None,
+        rois=None,
         label_key=None,
         cv_key='Run',
         cv_folds=None,
         cv_exclusive=None,
-        features_list=None,
+        layers=None,
         feature_index_file=None,
         excluded_labels=[],
         average_sample=True,
-        chunk_axis=1
+        chunk_axis=1,
+        analysis_name="feature_prediction"
 ):
     '''Cross-validation feature decoding.
 
     Input:
 
-    - fmri_data_files
-    - feature_decoder_dir
+    - fmri_data
+    - decoder_path
 
     Output:
 
@@ -58,16 +57,13 @@ def featdec_cv_fastl2lir_predict(
     If Y.ndim >= 3, Y is divided into chunks along `chunk_axis`.
     Note that Y[0] should be sample dimension.
     '''
-
-    analysis_basename = os.path.splitext(os.path.basename(__file__))[0] + '-' + conf['__filename__']
-
-    features_list = features_list[::-1]  # Start training from deep layers
+    layers = layers[::-1]  # Start training from deep layers
 
     # Print info -------------------------------------------------------------
-    print('Subjects:        %s' % list(fmri_data_files.keys()))
-    print('ROIs:            %s' % list(rois_list.keys()))
-    print('Decoders:        %s' % feature_decoder_dir)
-    print('Layers:          %s' % features_list)
+    print('Subjects:        %s' % list(fmri_data.keys()))
+    print('ROIs:            %s' % list(rois.keys()))
+    print('Decoders:        %s' % decoder_path)
+    print('Layers:          %s' % layers)
     print('CV:              %s' % cv_key)
     print('')
 
@@ -75,9 +71,10 @@ def featdec_cv_fastl2lir_predict(
     print('----------------------------------------')
     print('Loading data')
 
+    # FIXME: support multiple datasets
     data_brain = {
         sbj: bdpy.BData(dat_file[0])
-        for sbj, dat_file in fmri_data_files.items()
+        for sbj, dat_file in fmri_data.items()
     }
 
     # Initialize directories -------------------------------------------------
@@ -91,18 +88,18 @@ def featdec_cv_fastl2lir_predict(
         print('Saved %s' % feature_index_save_file)
 
     # Distributed computation setup ------------------------------------------
-    distcomp_db = os.path.join('./tmp', analysis_basename + '.db')
+    distcomp_db = os.path.join('./tmp', analysis_name + '.db')
     distcomp = DistComp(backend='sqlite3', db_path=distcomp_db)
 
     # Analysis loop ----------------------------------------------------------
     print('----------------------------------------')
     print('Analysis loop')
 
-    for feat, sbj, roi in product(features_list, fmri_data_files, rois_list):
+    for layer, sbj, roi in product(layers, fmri_data, rois):
         print('--------------------')
-        print('Feature:    %s' % feat)
-        print('Subject:    %s' % sbj)
-        print('ROI:        %s' % roi)
+        print('Layer:   %s' % layer)
+        print('Subject: %s' % sbj)
+        print('ROI:     %s' % roi)
 
         # Cross-validation setup
         if cv_exclusive is not None:
@@ -121,8 +118,8 @@ def featdec_cv_fastl2lir_predict(
 
             # Setup
             # -----
-            analysis_id = analysis_basename + '-' + sbj + '-' + roi + '-' + str(icv + 1) + '-' + feat
-            decoded_feature_dir = os.path.join(output_dir, feat, sbj, roi, 'cv-fold{}'.format(icv + 1), 'decoded_features')
+            analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + str(icv + 1) + '-' + layer
+            decoded_feature_dir = os.path.join(output_dir, layer, sbj, roi, 'cv-fold{}'.format(icv + 1), 'decoded_features')
 
             if os.path.exists(decoded_feature_dir):
                 print('%s is already done. Skipped.' % analysis_id)
@@ -140,7 +137,7 @@ def featdec_cv_fastl2lir_predict(
             start_time = time()
 
             # Brain data
-            x = data_brain[sbj].select(rois_list[roi])       # Brain data
+            x = data_brain[sbj].select(rois[roi])       # Brain data
             x_labels = data_brain[sbj].get_label(label_key)  # Labels
 
             # Extract test data
@@ -160,7 +157,7 @@ def featdec_cv_fastl2lir_predict(
 
             # Model directory
             # ---------------
-            model_dir = os.path.join(feature_decoders_dir, feat, sbj, roi, 'cv-fold{}'.format(icv + 1), 'model')
+            model_dir = os.path.join(decoder_path, layer, sbj, roi, 'cv-fold{}'.format(icv + 1), 'model')
 
             # Preprocessing
             # -------------
@@ -216,7 +213,7 @@ def featdec_cv_fastl2lir_predict(
 
             distcomp.unlock(analysis_id)
 
-    print('%s finished.' % analysis_basename)
+    print('%s finished.' % analysis_name)
 
     return output_dir
 
@@ -224,72 +221,47 @@ def featdec_cv_fastl2lir_predict(
 # Entry point ################################################################
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        'conf',
-        type=str,
-        help='analysis configuration file',
-    )
-    args = parser.parse_args()
 
-    conf_file = args.conf
+    cfg = init_hydra_cfg()
 
-    with open(conf_file, 'r') as f:
-        conf = yaml.safe_load(f)
+    analysis_name = cfg["_run_"]["name"] + '-' + cfg["_run_"]["config_name"]
 
-    conf.update({
-        '__filename__': os.path.splitext(os.path.basename(conf_file))[0]
-    })
+    decoder_path = cfg["decoded_feature"]["decoder"]["path"]
 
-    if 'analysis name' in conf:
-        feature_decoders_dir = os.path.join(conf['feature decoder dir'], conf['analysis name'], conf['network'])
-        decoded_feature_dir = os.path.join(conf['decoded feature dir'], conf['analysis name'], conf['network'])
+    test_fmri_data = {
+        subject["name"]: subject["paths"]
+        for subject in cfg["decoded_feature"]["fmri"]["subjects"]
+    }
+    rois = {
+        roi["name"]: roi["select"]
+        for roi in cfg["decoded_feature"]["fmri"]["rois"]
+    }
+    label_key = cfg["decoded_feature"]["fmri"]["label_key"]
 
-    else:
-        feature_decoders_dir = os.path.join(conf['feature decoder dir'], conf['network'])
-        decoded_feature_dir = os.path.join(conf['decoded feature dir'], conf['network'])
+    layers = cfg["decoded_feature"]["features"]["layers"]
+    feature_index_file = cfg.decoder.features.get("index_file", None)
 
-    if 'feature index file' in conf:
-        feature_index_file = os.path.join(
-            conf['training feature dir'][0],
-            conf['network'],
-            conf['feature index file']
-        )
-    else:
-        feature_index_file = None
+    decoded_feature_dir = cfg["decoded_feature"]["path"]
 
-    if 'exclude test label' in conf:
-        excluded_labels = conf['exclude test label']
-    else:
-        excluded_labels = []
+    average_sample = cfg["decoded_feature"]["parameters"]["average_sample"]
+    excluded_labels = cfg.decoded_feature.fmri.get("exclude_labels", [])
 
-    if 'test single trial' in conf:
-        average_sample = not conf['test single trial']
-    else:
-        average_sample = True
-
-    if 'cv folds' in conf:
-        cv_folds = conf['cv folds']
-    else:
-        cv_folds = None
-
-    if 'cv exclusive key' in conf:
-        cv_exclusive = conf['cv exclusive key']
-    else:
-        cv_exclusive = None
+    cv_folds = cfg.cv.get("folds", None)
+    cv_exclusive = cfg.cv.get("exclusive_key", None)
 
     featdec_cv_fastl2lir_predict(
-        conf['fmri'],
-        feature_decoders_dir,
+        test_fmri_data,
+        decoder_path,
         output_dir=decoded_feature_dir,
-        rois_list=conf['rois'],
-        label_key=conf['label key'],
-        cv_key=conf['cv key'],
+        rois=rois,
+        label_key=label_key,
+        cv_key=cfg["cv"]["key"],
         cv_folds=cv_folds,
         cv_exclusive=cv_exclusive,
-        features_list=conf['layers'],
+        layers=layers,
         feature_index_file=feature_index_file,
         excluded_labels=excluded_labels,
         average_sample=average_sample,
-        chunk_axis=conf['chunk axis']
+        chunk_axis=cfg["decoder"]["parameters"]["chunk_axis"],
+        analysis_name=analysis_name
     )
