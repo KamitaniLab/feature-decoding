@@ -26,7 +26,7 @@ def featdec_eval(
         output_file='./evaluation.db',
         subjects=None,
         rois=None,
-        features=None,
+        layers=None,
         feature_index_file=None,
         feature_decoder_path=None,
         average_sample=True,
@@ -55,7 +55,7 @@ def featdec_eval(
     print('')
     print('True features (Test): {}'.format(true_feature_path))
     print('')
-    print('Layers: {}'.format(features))
+    print('Layers: {}'.format(layers))
     print('')
     if feature_index_file is not None:
         print('Feature index: {}'.format(feature_index_file))
@@ -85,7 +85,7 @@ def featdec_eval(
         keys = ["layer", "subject", "roi", "metric"]
         results_db = ResultsStore(output_file, keys=keys)
 
-    for layer in features:
+    for layer in layers:
         print('Layer: {}'.format(layer))
 
         true_y = features_test.get(layer=layer)
@@ -164,23 +164,23 @@ if __name__ == '__main__':
     cfg = init_hydra_cfg()
 
     decoded_feature_path = cfg["decoded_feature"]["path"]
-    target_feature_path = cfg["decoded_feature"]["target"]["paths"][0]  # FIXME
+    gt_feature_path      = cfg["decoded_feature"]["features"]["paths"][0]  # FIXME
+
     feature_decoder_path = cfg["decoded_feature"]["decoder"]["path"]
+    subjects = [s["name"] for s in cfg["decoded_feature"]["fmri"]["subjects"]]
+    rois = [r["name"] for r in cfg["decoded_feature"]["fmri"]["rois"]]
+    layers = cfg["decoded_feature"]["features"]["layers"]
 
-    subjects = [s["name"] for s in cfg["decoded_feature"]["test_fmri"]["subjects"]]
-    rois = [r["name"] for r in cfg["decoded_feature"]["test_fmri"]["rois"]]
-    features = cfg["decoded_feature"]["target"]["layers"]
-
-    feature_index_file = cfg.decoder.target.get("index_file", None)
+    feature_index_file = cfg.decoder.features.get("index_file", None)
     average_sample = cfg["decoded_feature"]["parameters"]["average_sample"]
 
     featdec_eval(
         decoded_feature_path,
-        target_feature_path,
+        gt_feature_path,
         output_file=os.path.join(decoded_feature_path, 'evaluation.db'),
         subjects=subjects,
         rois=rois,
-        features=features,
+        layers=layers,
         feature_index_file=feature_index_file,
         feature_decoder_path=feature_decoder_path,
         average_sample=average_sample
