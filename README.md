@@ -21,45 +21,57 @@ TBA
 
 ### Decoding with PyFastL2LiR
 
-- Training: `featdec_fastl2lir_train.py`
-- Test (prediction): `featdec_fastl2lir_predict.py`
-- Evaluation: `featdec_eval.py`
+- Training: `train_decoder_fastl2lir.py`
+- Test (prediction): `predict_feature_fastl2lir.py`
+- Evaluation: `evaluation.py`
 - Example config file: [deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml](config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml)
 
 ```shell
 # Training of decoding models
-$ python featdec_fastl2lir_train.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python train_decoder_fastl2lir.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 
 # Prediction of DNN features
-$ python featdec_fastl2lir_preeict.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python predict_feature_fastl2lir.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 
 # Evaluation
-$ python featdec_eval.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python evaluation.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 ```
 
 ### Decoding with generic regression models
 
-Example config file: [deeprecon_sklearn_ridge_alpha100_vgg19_allunits](config/deeprecon_sklearn_ridge_alpha100_vgg19_allunits.yaml)
-
-- Training: `featdec_sklearn_ridge_train.py` (example for scikit-learn Ridge regression)
-- Test (prediction): `featdec_predict.py`
-- Evaluation: `featdec_eval.py`
+- Training: `train_decoder_sklearn_ridge.py` (example for scikit-learn Ridge regression)
+- Test (prediction): `predict_feature.py`
+- Evaluation: `evaluation.py`
 - Example config file: [deeprecon_sklearn_ridge_alpha100_vgg19_allunits](config/deeprecon_sklearn_ridge_alpha100_vgg19_allunits.yaml)
 
 ```shell
 # Training of decoding models
-$ python featdec_sklearn_ridge_train.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python train_decoder_sklearn_ridge.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 
 # Prediction of DNN features
-$ python featdec_preeict.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python preeict_feature.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 
 # Evaluation
-$ python featdec_eval.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python evaluation.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 ```
 
 ### Cross-validation feature decoding
 
-TBA
+- Training: `cv_train_decoder_fastl2lir.py` (example for scikit-learn Ridge regression)
+- Test (prediction): `cv_predict_feature_fastl2lir.py`
+- Evaluation: `cv_evaluation.py`
+- Example config file: [deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits](config/deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits.yaml)
+
+```shell
+# Training of decoding models
+$ python cv_train_decoder_fastl2lir.py config/deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits.yaml
+
+# Prediction of DNN features
+$ python cv_predict_feature_fastl2lir.py config/deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits.yaml
+
+# Evaluation
+$ python cv_evaluation.py config/deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits.yaml
+```
 
 ## References
 
