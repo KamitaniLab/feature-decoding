@@ -1,4 +1,4 @@
-'''DNN Feature decoding - decoders training script'''
+'''DNN Feature decoding - decoders training script.'''
 
 
 from typing import Dict, List, Optional

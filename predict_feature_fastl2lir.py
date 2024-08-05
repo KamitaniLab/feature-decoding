@@ -1,4 +1,4 @@
-'''DNN Feature decoding - decoders test (prediction) script'''
+'''DNN Feature decoding - feature prediction script.'''
 
 
 from typing import Dict, List, Optional

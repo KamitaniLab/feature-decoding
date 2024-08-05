@@ -1,4 +1,4 @@
-'''DNN Feature decoding (corss-validation) prediction scripts.'''
+'''DNN Feature decoding (corss-validation) - feature prediction script.'''
 
 
 from typing import Dict, List, Optional

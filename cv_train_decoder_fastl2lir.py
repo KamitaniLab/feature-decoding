@@ -1,4 +1,4 @@
-'''DNN Feature decoding (corss-validation) training script.'''
+'''DNN Feature decoding (corss-validation) - decoders training script.'''
 
 
 from typing import Dict, List, Optional
@@ -41,7 +41,7 @@ def featdec_cv_fastl2lir_train(
         chunk_axis: int = 1,
         analysis_name: str = "feature_decoder_training"
 ):
-    '''Cross-validation feature decoding.
+    '''Cross-validation feature decoder training.
 
     Input:
 
