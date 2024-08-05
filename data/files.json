@@ -1,5 +1,5 @@
 {
-    "fmri": {
+    "fmri_deeprecon_fmriprep": {
         "zip": false,
         "save_in": "./fmri/Deeprecon",
         "files": [
