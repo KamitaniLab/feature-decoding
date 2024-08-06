@@ -108,22 +108,22 @@ def featdec_fastl2lir_predict(
         start_time = time()
 
         # Brain data
-        x = data_brain[sbj].select(rois[roi])  # Brain data
+        brain = data_brain[sbj].select(rois[roi])
         # TODO: Dirty solution. FIXME!
         try:
-            x_labels = data_brain[sbj].get_label(label_key)  # Labels
+            brain_labels = data_brain[sbj].get_label(label_key)
         except ValueError:
             print(f'{label_key} not found in vmap. Select numerical values of {label_key} as labels.')
-            x_labels = list(data_brain[sbj].select(label_key).flatten())
+            brain_labels = list(data_brain[sbj].select(label_key).flatten())
 
         # Averaging brain data
         if average_sample:
-            x_labels_unique = np.unique(x_labels)
-            x_labels_unique = [lb for lb in x_labels_unique if lb not in excluded_labels]
-            x = np.vstack([np.mean(x[(np.array(x_labels) == lb).flatten(), :], axis=0) for lb in x_labels_unique])
+            brain_labels_unique = np.unique(brain_labels)
+            brain_labels_unique = [lb for lb in brain_labels_unique if lb not in excluded_labels]
+            brain = np.vstack([np.mean(brain[(np.array(brain_labels) == lb).flatten(), :], axis=0) for lb in brain_labels_unique])
         else:
             # Sample No. + Label
-            x_labels_unique = ['sample{:06}-{}'.format(i + 1, lb) for i, lb in enumerate(x_labels)]
+            brain_labels_unique = ['sample{:06}-{}'.format(i + 1, lb) for i, lb in enumerate(brain_labels)]
 
         print('Elapsed time (data preparation): %f' % (time() - start_time))
 
@@ -133,12 +133,12 @@ def featdec_fastl2lir_predict(
 
         # Preprocessing
         # -------------
-        x_mean = load_array(os.path.join(model_dir, 'x_mean.mat'), key='x_mean')  # shape = (1, n_voxels)
-        x_norm = load_array(os.path.join(model_dir, 'x_norm.mat'), key='x_norm')  # shape = (1, n_voxels)
-        y_mean = load_array(os.path.join(model_dir, 'y_mean.mat'), key='y_mean')  # shape = (1, shape_features)
-        y_norm = load_array(os.path.join(model_dir, 'y_norm.mat'), key='y_norm')  # shape = (1, shape_features)
+        brain_mean = load_array(os.path.join(model_dir, 'x_mean.mat'), key='x_mean')  # shape = (1, n_voxels)
+        brain_norm = load_array(os.path.join(model_dir, 'x_norm.mat'), key='x_norm')  # shape = (1, n_voxels)
+        feat_mean = load_array(os.path.join(model_dir, 'y_mean.mat'), key='y_mean')  # shape = (1, shape_features)
+        feat_norm = load_array(os.path.join(model_dir, 'y_norm.mat'), key='y_norm')  # shape = (1, shape_features)
 
-        x = (x - x_mean) / x_norm
+        brain = (brain - brain_mean) / brain_norm
 
         # Prediction
         # ----------
@@ -148,19 +148,19 @@ def featdec_fastl2lir_predict(
 
         model = FastL2LiR()
 
-        test = ModelTest(model, x)
+        test = ModelTest(model, brain)
         test.model_format = 'bdmodel'
         test.model_path = model_dir
         test.dtype = np.float32
         test.chunk_axis = chunk_axis
 
-        y_pred = test.run()
+        feat_pred = test.run()
 
         print('Total elapsed time (prediction): %f' % (time() - start_time))
 
         # Postprocessing
         # --------------
-        y_pred = y_pred * y_norm + y_mean
+        feat_pred = feat_pred * feat_norm + feat_mean
 
         # Save results
         # ------------
@@ -169,15 +169,15 @@ def featdec_fastl2lir_predict(
         start_time = time()
 
         # Predicted features
-        for i, label in enumerate(x_labels_unique):
+        for i, label in enumerate(brain_labels_unique):
             # Predicted features
-            feat = np.array([y_pred[i,]])  # To make feat shape 1 x M x N x ...
+            _feat = np.array([feat_pred[i,]])  # To make feat shape 1 x M x N x ...
 
             # Save file name
             save_file = os.path.join(results_dir_prediction, '%s.mat' % label)
 
             # Save
-            save_array(save_file, feat, key='feat', dtype=np.float32, sparse=False)
+            save_array(save_file, _feat, key='feat', dtype=np.float32, sparse=False)
 
         print('Saved %s' % results_dir_prediction)
 
@@ -198,6 +198,8 @@ if __name__ == '__main__':
 
     analysis_name = cfg["_run_"]["name"] + '-' + cfg["_run_"]["config_name"]
 
+    decoder_path = cfg["decoded_feature"]["decoder"]["path"]
+
     test_fmri_data = {
         subject["name"]: subject["paths"]
         for subject in cfg["decoded_feature"]["fmri"]["subjects"]
@@ -208,13 +210,11 @@ if __name__ == '__main__':
     }
     label_key = cfg["decoded_feature"]["fmri"]["label_key"]
 
-    test_features = cfg["decoded_feature"]["features"]["paths"]
     layers = cfg["decoded_feature"]["features"]["layers"]
     feature_index_file = cfg.decoder.features.get("index_file", None)
 
-    decoder_path = cfg["decoded_feature"]["decoder"]["path"]
-
     decoded_feature_dir = cfg["decoded_feature"]["path"]
+
     average_sample = cfg["decoded_feature"]["parameters"]["average_sample"]
     excluded_labels = cfg.decoded_feature.fmri.get("exclude_labels", [])
 

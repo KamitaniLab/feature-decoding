@@ -137,21 +137,21 @@ def featdec_cv_fastl2lir_predict(
             start_time = time()
 
             # Brain data
-            x = data_brain[sbj].select(rois[roi])       # Brain data
-            x_labels = data_brain[sbj].get_label(label_key)  # Labels
+            brain = data_brain[sbj].select(rois[roi])
+            brain_labels = data_brain[sbj].get_label(label_key)
 
             # Extract test data
-            x = x[test_index, :]
-            x_labels = np.array(x_labels)[test_index]
+            brain = brain[test_index, :]
+            brain_labels = np.array(brain_labels)[test_index]
 
             # Averaging brain data
             if average_sample:
-                x_labels_unique = np.unique(x_labels)
-                x_labels_unique = [lb for lb in x_labels_unique if lb not in excluded_labels]
-                x = np.vstack([np.mean(x[(np.array(x_labels) == lb).flatten(), :], axis=0) for lb in x_labels_unique])
+                brain_labels_unique = np.unique(brain_labels)
+                brain_labels_unique = [lb for lb in brain_labels_unique if lb not in excluded_labels]
+                brain = np.vstack([np.mean(brain[(np.array(brain_labels) == lb).flatten(), :], axis=0) for lb in brain_labels_unique])
             else:
                 # Label + sample no.
-                x_labels_unique = ['trial_{:04}-{}'.format(i + 1, lb) for i, lb in enumerate(x_labels)]
+                brain_labels_unique = ['trial_{:04}-{}'.format(i + 1, lb) for i, lb in enumerate(brain_labels)]
 
             print('Elapsed time (data preparation): %f' % (time() - start_time))
 
@@ -161,12 +161,12 @@ def featdec_cv_fastl2lir_predict(
 
             # Preprocessing
             # -------------
-            x_mean = load_array(os.path.join(model_dir, 'x_mean.mat'), key='x_mean')  # shape = (1, n_voxels)
-            x_norm = load_array(os.path.join(model_dir, 'x_norm.mat'), key='x_norm')  # shape = (1, n_voxels)
-            y_mean = load_array(os.path.join(model_dir, 'y_mean.mat'), key='y_mean')  # shape = (1, shape_features)
-            y_norm = load_array(os.path.join(model_dir, 'y_norm.mat'), key='y_norm')  # shape = (1, shape_features)
+            brain_mean = load_array(os.path.join(model_dir, 'x_mean.mat'), key='x_mean')  # shape = (1, n_voxels)
+            brain_norm = load_array(os.path.join(model_dir, 'x_norm.mat'), key='x_norm')  # shape = (1, n_voxels)
+            feat_mean = load_array(os.path.join(model_dir, 'y_mean.mat'), key='y_mean')  # shape = (1, shape_features)
+            feat_norm = load_array(os.path.join(model_dir, 'y_norm.mat'), key='y_norm')  # shape = (1, shape_features)
 
-            x = (x - x_mean) / x_norm
+            brain = (brain - brain_mean) / brain_norm
 
             # Prediction
             # ----------
@@ -176,19 +176,19 @@ def featdec_cv_fastl2lir_predict(
 
             model = FastL2LiR()
 
-            test = ModelTest(model, x)
+            test = ModelTest(model, brain)
             test.model_format = 'bdmodel'
             test.model_path = model_dir
             test.dtype = np.float32
             test.chunk_axis = chunk_axis
 
-            y_pred = test.run()
+            feat_pred = test.run()
 
             print('Total elapsed time (prediction): %f' % (time() - start_time))
 
             # Postprocessing
             # --------------
-            y_pred = y_pred * y_norm + y_mean
+            feat_pred = feat_pred * feat_norm + feat_mean
 
             # Save results
             # ------------
@@ -197,15 +197,15 @@ def featdec_cv_fastl2lir_predict(
             start_time = time()
 
             # Predicted features
-            for i, label in enumerate(x_labels_unique):
+            for i, label in enumerate(brain_labels_unique):
                 # Predicted features
-                y = np.array([y_pred[i,]])  # To make feat shape 1 x M x N x ...
+                _feat = np.array([feat_pred[i,]])  # To make feat shape 1 x M x N x ...
 
                 # Save file name
                 save_file = os.path.join(decoded_feature_dir, '%s.mat' % label)
 
                 # Save
-                save_array(save_file, y, key='feat', dtype=np.float32, sparse=False)
+                save_array(save_file, _feat, key='feat', dtype=np.float32, sparse=False)
 
             print('Saved %s' % decoded_feature_dir)
 

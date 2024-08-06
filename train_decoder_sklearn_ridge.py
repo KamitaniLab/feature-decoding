@@ -27,7 +27,7 @@ import yaml
 def featdec_sklearn_ridge_train(
         fmri_data: Dict[str, List[str]],
         features_paths: List[str],
-        output_dir: Optional[str] = './feature_decoders',
+        output_dir: str = './feature_decoders',
         rois: Optional[Dict[str, str]] = None,
         label_key: Optional[str] = None,
         layers: Optional[List[str]] = None,
@@ -104,11 +104,11 @@ def featdec_sklearn_ridge_train(
         # Setup
         # -----
         analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + layer
-        results_dir = os.path.join(output_dir, layer, sbj, roi, 'model')
-        makedir_ifnot(results_dir)
+        model_dir = os.path.join(output_dir, layer, sbj, roi, 'model')
+        makedir_ifnot(model_dir)
 
         # Check whether the analysis has been done or not.
-        info_file = os.path.join(results_dir, 'info.yaml')
+        info_file = os.path.join(model_dir, 'info.yaml')
         if os.path.exists(info_file):
             with open(info_file, 'r') as f:
                 info = yaml.safe_load(f)
@@ -129,44 +129,44 @@ def featdec_sklearn_ridge_train(
         start_time = time()
 
         # Brain data
-        x = select_data_multi_bdatas(data_brain[sbj], rois[roi])   # Brain data
-        x_labels = get_labels_multi_bdatas(data_brain[sbj], label_key)  # Labels
+        brain = select_data_multi_bdatas(data_brain[sbj], rois[roi])
+        brain_labels = get_labels_multi_bdatas(data_brain[sbj], label_key)
 
-        # Target features and image labels (file names)
-        y_labels = np.unique(x_labels)
-        y = get_multi_features(data_features, layer, labels=y_labels)  # Target DNN features
+        # Features
+        feat_labels = np.unique(brain_labels)
+        feat = get_multi_features(data_features, layer, labels=feat_labels)
 
-        # Use x that has a label included in y
-        x = np.vstack([_x for _x, xl in zip(x, x_labels) if xl in y_labels])
-        x_labels = [xl for xl in x_labels if xl in y_labels]
+        # Use brain data that has a label included in feature data
+        brain = np.vstack([_b for _b, bl in zip(brain, brain_labels) if bl in feat_labels])
+        brain_labels = [bl for bl in brain_labels if bl in feat_labels]
 
         print('Elapsed time (data preparation): %f' % (time() - start_time))
 
         # Calculate normalization parameters
         # ----------------------------------
 
-        # Normalize X (fMRI data)
-        x_mean = np.mean(x, axis=0)[np.newaxis, :]  # np.newaxis was added to match Matlab outputs
-        x_norm = np.std(x, axis=0, ddof=1)[np.newaxis, :]
+        # Normalize brain data
+        brain_mean = np.mean(brain, axis=0)[np.newaxis, :]  # np.newaxis was added to match Matlab outputs
+        brain_norm = np.std(brain, axis=0, ddof=1)[np.newaxis, :]
 
-        # Normalize Y (DNN features)
-        y_mean = np.mean(y, axis=0)[np.newaxis, :]
-        y_norm = np.std(y, axis=0, ddof=1)[np.newaxis, :]
+        # Normalize features
+        feat_mean = np.mean(feat, axis=0)[np.newaxis, :]
+        feat_norm = np.std(feat, axis=0, ddof=1)[np.newaxis, :]
 
-        # Y index to sort Y by X (matching samples)
+        # Index to sort features by brain data (matching samples)
         # -----------------------------------------
-        y_index = np.array([np.where(np.array(y_labels) == xl) for xl in x_labels]).flatten()
+        feat_index = np.array([np.where(np.array(feat_labels) == bl) for bl in brain_labels]).flatten()
 
         # Save normalization parameters
         # -----------------------------
         print('Saving normalization parameters.')
         norm_param = {
-            'x_mean': x_mean, 'y_mean': y_mean,
-            'x_norm': x_norm, 'y_norm': y_norm
+            'x_mean': brain_mean, 'y_mean': feat_mean,
+            'x_norm': brain_norm, 'y_norm': feat_norm
         }
         save_targets = [u'x_mean', u'y_mean', u'x_norm', u'y_norm']
         for sv in save_targets:
-            save_file = os.path.join(results_dir, sv + '.mat')
+            save_file = os.path.join(model_dir, sv + '.mat')
             if not os.path.exists(save_file):
                 try:
                     save_array(save_file, norm_param[sv], key=sv, dtype=np.float32, sparse=False)
@@ -189,17 +189,17 @@ def featdec_sklearn_ridge_train(
         print('Model training')
         start_time = time()
 
-        train = ModelTraining(model, x, y)
+        train = ModelTraining(model, brain, feat)
         train.id = analysis_id
 
-        train.X_normalize = {'mean': x_mean, 'std': x_norm}
-        train.Y_normalize = {'mean': y_mean, 'std': y_norm}
-        train.Y_sort = {'index': y_index}
+        train.X_normalize = {'mean': brain_mean, 'std': brain_norm}
+        train.Y_normalize = {'mean': feat_mean, 'std': feat_norm}
+        train.Y_sort = {'index': feat_index}
 
         train.dtype = np.float32
         train.chunk_axis = chunk_axis
         train.save_format = 'pickle'
-        train.save_path = results_dir
+        train.save_path = model_dir
         train.distcomp = distcomp
 
         train.run()

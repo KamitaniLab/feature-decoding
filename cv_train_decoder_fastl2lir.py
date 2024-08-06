@@ -28,7 +28,7 @@ import yaml
 def featdec_cv_fastl2lir_train(
         fmri_data: Dict[str, List[str]],
         features_paths: List[str],
-        output_dir: Optional[str] = './feature_decoding_cv',
+        output_dir: str = './feature_decoding_cv',
         rois: Optional[Dict[str, str]] = None,
         num_voxel: Optional[Dict[str, int]] = None,
         label_key: Optional[str] = None,
@@ -154,25 +154,25 @@ def featdec_cv_fastl2lir_train(
             start_time = time()
 
             # Brain data
-            x = select_data_multi_bdatas(data_brain[sbj], rois[roi])   # Brain data
-            x_labels = get_labels_multi_bdatas(data_brain[sbj], label_key)  # Labels
+            brain = select_data_multi_bdatas(data_brain[sbj], rois[roi])
+            brain_labels = get_labels_multi_bdatas(data_brain[sbj], label_key)
 
-            x_train = x[train_index, :]
-            x_train_labels = np.array(x_labels)[train_index]
+            brain = brain[train_index, :]
+            brain_labels = np.array(brain_labels)[train_index]
 
-            # Target features and image labels (file names)
-            y_labels = np.unique(x_labels)
-            y = get_multi_features(data_features, layer, labels=y_labels)  # Target DNN features
+            # Features
+            feat_labels = np.unique(brain_labels)
+            feat = get_multi_features(data_features, layer, labels=feat_labels)
 
-            # Use x that has a label included in y
-            x_train = np.vstack([_x for _x, xl in zip(x_train, x_train_labels) if xl in y_labels])
-            x_train_labels = [xl for xl in x_train_labels if xl in y_labels]
+            # Use brain data that has a label included in feature data
+            brain = np.vstack([_b for _b, bl in zip(brain, brain_labels) if bl in feat_labels])
+            brain_labels = [bl for bl in brain_labels if bl in feat_labels]
 
-            # Y index to sort Y by X (matching samples)
-            y_index = np.array([np.where(np.array(y_labels) == xl) for xl in x_train_labels]).flatten()
+            # Index to sort features by brain data (matching samples)
+            feat_index = np.array([np.where(np.array(feat_labels) == bl) for bl in brain_labels]).flatten()
 
             # Get training samples of Y
-            y_train = y[y_index, :]
+            feat_train = feat[feat_index, :]
 
             print('Elapsed time (data preparation): %f' % (time() - start_time))
 
@@ -180,18 +180,20 @@ def featdec_cv_fastl2lir_train(
             # ----------------------------------
 
             # Normalize X (fMRI data)
-            x_mean = np.mean(x_train, axis=0)[np.newaxis, :]  # np.newaxis was added to match Matlab outputs
-            x_norm = np.std(x_train, axis=0, ddof=1)[np.newaxis, :]
+            brain_mean = np.mean(brain, axis=0)[np.newaxis, :]  # np.newaxis was added to match Matlab outputs
+            brain_norm = np.std(brain, axis=0, ddof=1)[np.newaxis, :]
 
             # Normalize Y (DNN features)
-            y_mean = np.mean(y_train, axis=0)[np.newaxis, :]
-            y_norm = np.std(y_train, axis=0, ddof=1)[np.newaxis, :]
+            feat_mean = np.mean(feat_train, axis=0)[np.newaxis, :]
+            feat_norm = np.std(feat_train, axis=0, ddof=1)[np.newaxis, :]
 
             # Save normalization parameters
             # -----------------------------
             print('Saving normalization parameters.')
-            norm_param = {'x_mean': x_mean, 'y_mean': y_mean,
-                          'x_norm': x_norm, 'y_norm': y_norm}
+            norm_param = {
+                'x_mean': brain_mean, 'y_mean': feat_mean,
+                'x_norm': brain_norm, 'y_norm': feat_norm
+            }
             save_targets = [u'x_mean', u'y_mean', u'x_norm', u'y_norm']
             for sv in save_targets:
                 save_file = os.path.join(model_dir, sv + '.mat')
@@ -216,15 +218,15 @@ def featdec_cv_fastl2lir_train(
             print('Model training')
             start_time = time()
 
-            train = ModelTraining(model, x_train, y)
+            train = ModelTraining(model, brain, feat)
             train.id = analysis_id
             train.model_parameters = model_param
 
-            train.X_normalize = {'mean': x_mean,
-                                 'std': x_norm}
-            train.Y_normalize = {'mean': y_mean,
-                                 'std': y_norm}
-            train.Y_sort = {'index': y_index}
+            train.X_normalize = {'mean': brain_mean,
+                                 'std': brain_norm}
+            train.Y_normalize = {'mean': feat_mean,
+                                 'std': feat_norm}
+            train.Y_sort = {'index': feat_index}
 
             train.dtype = np.float32
             train.chunk_axis = chunk_axis
