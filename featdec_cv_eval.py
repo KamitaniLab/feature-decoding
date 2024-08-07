@@ -1,4 +1,4 @@
-'''Feature decoding evaluation.'''
+'''Feature decoding (corss-validation) evaluation.'''
 
 
 import argparse
@@ -6,21 +6,25 @@ from itertools import product
 import os
 import re
 
-from bdpy.dataform import Features, DecodedFeatures
+from bdpy.dataform import Features, DecodedFeatures, SQLite3KeyValueStore
 from bdpy.evals.metrics import profile_correlation, pattern_correlation, pairwise_identification
 import hdf5storage
 import numpy as np
-import pandas as pd
 import yaml
 
 
 # Main #######################################################################
 
+class ResultsStore(SQLite3KeyValueStore):
+    """Results store for feature decoding evaluation."""
+    pass
+
+
 def featdec_cv_eval(
         decoded_feature_dir,
         true_feature_dir,
-        output_file_pooled='./accuracy.pkl.gz',
-        output_file_fold='./accuracy_fold.pkl.gz',
+        output_file_pooled='./evaluation.db',
+        output_file_fold='./evaluation_fold.db',
         subjects=None,
         rois=None,
         features=None,
@@ -71,17 +75,23 @@ def featdec_cv_eval(
 
     cv_folds = decoded_features.folds
 
+    # Metrics ################################################################
+    metrics = ['profile_correlation', 'pattern_correlation', 'identification_accuracy']
+    pooled_operation = {
+        "profile_correlation": "mean",
+        "pattern_correlation": "concat",
+        "identification_accuracy": "concat",
+    }
+
     # Evaluating decoding performances #######################################
 
     if os.path.exists(output_file_fold):
         print('Loading {}'.format(output_file_fold))
-        perf_df_fold = pd.read_pickle(output_file_fold)
+        results_db = ResultsStore(output_file_fold)
     else:
-        print('Creating an empty dataframe')
-        perf_df_fold = pd.DataFrame(columns=[
-            'layer', 'subject', 'roi', 'fold',
-            'profile correlation', 'pattern correlation', 'identification accuracy'
-        ])
+        print('Creating new evaluation result store')
+        keys = ["layer", "subject", "roi", "fold", "metric"]
+        results_db = ResultsStore(output_file_fold, keys=keys)
 
     true_labels = features_test.labels
 
@@ -92,11 +102,11 @@ def featdec_cv_eval(
         for subject, roi, fold in product(subjects, rois, cv_folds):
             print('Subject: {} - ROI: {} - Fold: {}'.format(subject, roi, fold))
 
-            if len(perf_df_fold.query(
-                    'layer == "{}" and subject == "{}" and roi == "{}" and fold == "{}"'.format(
-                        layer, subject, roi, fold
-                    )
-            )) > 0:
+            # Check if the evaluation is already done
+            exists = True
+            for metric in metrics:
+                exists = exists and results_db.exists(layer=layer, subject=subject, roi=roi, fold=fold, metric=metric)
+            if exists:
                 print('Already done. Skipped.')
                 continue
 
@@ -123,72 +133,82 @@ def featdec_cv_eval(
             train_y_mean = hdf5storage.loadmat(os.path.join(norm_param_dir, 'y_mean.mat'))['y_mean']
             train_y_std = hdf5storage.loadmat(os.path.join(norm_param_dir, 'y_norm.mat'))['y_norm']
 
-            r_prof = profile_correlation(pred_y, true_y_sorted)
-            r_patt = pattern_correlation(pred_y, true_y_sorted, mean=train_y_mean, std=train_y_std)
+            # Evaluation ---------------------------
 
-            if single_trial:
-                ident = pairwise_identification(pred_y, true_y, single_trial=True, pred_labels=pred_labels, true_labels=true_labels)
-            else:
-                ident = pairwise_identification(pred_y, true_y_sorted)
+            # Profile correlation
+            if not results_db.exists(layer=layer, subject=subject, roi=roi, fold=fold, metric='profile_correlation'):
+                results_db.set(layer=layer, subject=subject, roi=roi, fold=fold, metric='profile_correlation', value=np.array([]))
+                r_prof = profile_correlation(pred_y, true_y_sorted)
+                results_db.set(layer=layer, subject=subject, roi=roi, fold=fold, metric='profile_correlation', value=r_prof)
+                print('Mean profile correlation:     {}'.format(np.nanmean(r_prof)))
 
-            print('Mean profile correlation:     {}'.format(np.nanmean(r_prof)))
-            print('Mean pattern correlation:     {}'.format(np.nanmean(r_patt)))
-            print('Mean identification accuracy: {}'.format(np.nanmean(ident)))
+            # Pattern correlation
+            if not results_db.exists(layer=layer, subject=subject, roi=roi, fold=fold, metric='pattern_correlation'):
+                results_db.set(layer=layer, subject=subject, roi=roi, fold=fold, metric='pattern_correlation', value=np.array([]))
+                r_patt = pattern_correlation(pred_y, true_y_sorted, mean=train_y_mean, std=train_y_std)
+                results_db.set(layer=layer, subject=subject, roi=roi, fold=fold, metric='pattern_correlation', value=r_patt)
+                print('Mean pattern correlation:     {}'.format(np.nanmean(r_patt)))
 
-            perf_df_fold = perf_df_fold.append(
-                {
-                    'layer':   layer,
-                    'subject': subject,
-                    'roi':     roi,
-                    'fold':    fold,
-                    'profile correlation': r_prof.flatten(),
-                    'pattern correlation': r_patt.flatten(),
-                    'identification accuracy': ident.flatten(),
-                },
-                ignore_index=True
-            )
+            # Pair-wise identification accuracy
+            if not results_db.exists(layer=layer, subject=subject, roi=roi, fold=fold, metric='identification_accuracy'):
+                results_db.set(layer=layer, subject=subject, roi=roi, fold=fold, metric='identification_accuracy', value=np.array([]))
+                if single_trial:
+                    ident = pairwise_identification(pred_y, true_y, single_trial=True, pred_labels=pred_labels, true_labels=true_labels)
+                else:
+                    ident = pairwise_identification(pred_y, true_y_sorted)
+                results_db.set(layer=layer, subject=subject, roi=roi, fold=fold, metric='identification_accuracy', value=ident)
+                print('Mean identification accuracy: {}'.format(np.nanmean(ident)))
 
-    print(perf_df_fold)
+    print('All fold done')
 
-    # Save the results (each fold)
-    perf_df_fold.to_pickle(output_file_fold, compression='gzip')
-    print('Saved {}'.format(output_file_fold))
+    # Pooled accuracy
+    if os.path.exists(output_file_pooled):
+        print('Loading {}'.format(output_file_pooled))
+        pooled_db = ResultsStore(output_file_pooled)
+    else:
+        print('Creating new evaluation result store')
+        keys = ["layer", "subject", "roi", "metric"]
+        pooled_db = ResultsStore(output_file_pooled, keys=keys)
 
-    print('All done')
+    done_all = True  # Flag indicating that all conditions have been pooled
+    for layer, subject, roi, metric in product(features, subjects, rois, metrics):
+        # Check if pooling is done
+        if pooled_db.exists(layer=layer, subject=subject, roi=roi, metric=metric):
+            continue
+        pooled_db.set(layer=layer, subject=subject, roi=roi, metric=metric, value=np.array([]))
 
-    # Pool accuracy
-    perf_df_pooled = pd.DataFrame(columns=[
-        'layer', 'subject', 'roi',
-        'profile correlation', 'pattern correlation', 'identification accuracy'
-    ])
+        # Check if all folds are complete
+        done = True
+        for fold in cv_folds:
+            if not results_db.exists(layer=layer, subject=subject, roi=roi,
+                                     fold=fold, metric=metric):
+                done = False
+                break
 
-    for layer, subject, roi in product(features, subjects, rois):
-        q = 'layer == "{}" and subject == "{}" and roi == "{}"'.format(layer, subject, roi)
-        r = perf_df_fold.query(q)
+        # When all folds are complete, pool the results.
+        if done:
+            acc = []
+            for fold in cv_folds:
+                acc.append(results_db.get(layer=layer, subject=subject, roi=roi,
+                                          fold=fold, metric=metric))
+            if pooled_operation[metric] == "mean":
+                acc = np.nanmean(acc, axis=0)
+            elif pooled_operation[metric] == "concat":
+                acc = np.hstack(acc)
+            pooled_db.set(layer=layer, subject=subject, roi=roi,
+                          metric=metric, value=acc)
 
-        r_prof_pooled = r['profile correlation'].mean()
-        r_patt_pooled = np.hstack(r['pattern correlation'])
-        ident_pooled  = np.hstack(r['identification accuracy'])
+        # If there are any unfinished conditions,
+        # do not pool the results and set the done_all flag to False.
+        else:
+            pooled_db.delete(layer=layer, subject=subject, roi=roi, metric=metric)
+            done_all = False
+            continue
 
-        perf_df_pooled = perf_df_pooled.append(
-                {
-                    'layer':   layer,
-                    'subject': subject,
-                    'roi':     roi,
-                    'profile correlation': r_prof_pooled.flatten(),
-                    'pattern correlation': r_patt_pooled.flatten(),
-                    'identification accuracy': ident_pooled.flatten(),
-                },
-                ignore_index=True
-            )
-
-    print(perf_df_pooled)
-
-    # Save the results (pooled)
-    perf_df_pooled.to_pickle(output_file_pooled, compression='gzip')
-    print('Saved {}'.format(output_file_pooled))
-
-    print('All done')
+    if done_all:
+        print('All pooling done.')
+    else:
+        print("Some pooling has not finished.")
 
     return output_file_pooled, output_file_fold
 
@@ -237,8 +257,8 @@ if __name__ == '__main__':
     featdec_cv_eval(
         decoded_feature_dir,
         os.path.join(conf['feature dir'][0], conf['network']),
-        output_file_pooled=os.path.join(decoded_feature_dir, 'accuracy.pkl.gz'),
-        output_file_fold=os.path.join(decoded_feature_dir, 'accuracy_fold.pkl.gz'),
+        output_file_pooled=os.path.join(decoded_feature_dir, 'evaluation.db'),
+        output_file_fold=os.path.join(decoded_feature_dir, 'evaluation_fold.db'),
         subjects=list(conf['fmri'].keys()),
         rois=list(conf['rois'].keys()),
         features=conf['layers'],
