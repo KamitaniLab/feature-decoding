@@ -4,9 +4,9 @@ This repository provides scripts of deep neural network (DNN) feature decoding f
 
 ## Usage
 
-### Environemnt setup
+### Environment setup
 
-Please setup Python environemnt where packages in [requirements.txt](requirements.txt) are installed.
+Please setup Python environment where packages in [requirements.txt](requirements.txt) are installed.
 
 ```shell
 # Using venv
