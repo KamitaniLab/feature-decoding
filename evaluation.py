@@ -85,13 +85,13 @@ def featdec_eval(
         keys = ["layer", "subject", "roi", "metric"]
         results_db = ResultsStore(output_file, keys=keys)
 
-    for layer in layers:
+    for layer in np.random.permutation(layers):
         print('Layer: {}'.format(layer))
 
         true_y = features_test.get(layer=layer)
         true_labels = features_test.labels
 
-        for subject, roi in product(subjects, rois):
+        for subject, roi in np.random.permutation(list(product(subjects, rois))):
             print('Subject: {} - ROI: {}'.format(subject, roi))
 
             # Check if the evaluation is already done

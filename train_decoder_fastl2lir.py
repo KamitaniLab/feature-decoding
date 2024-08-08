@@ -98,7 +98,7 @@ def featdec_fastl2lir_train(
     print('----------------------------------------')
     print('Analysis loop')
 
-    for layer, sbj, roi in product(layers, fmri_data, rois):
+    for layer, sbj, roi in np.random.permutation(list(product(layers, fmri_data.keys(), rois.keys()))):
         print('--------------------')
         print('Feature:    %s' % layer)
         print('Subject:    %s' % sbj)

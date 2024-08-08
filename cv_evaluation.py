@@ -97,11 +97,11 @@ def featdec_cv_eval(
 
     true_labels = features_test.labels
 
-    for layer in layers:
+    for layer in np.random.permutation(layers):
         print('Layer: {}'.format(layer))
         true_y = features_test.get_features(layer=layer)
 
-        for subject, roi, fold in product(subjects, rois, cv_folds):
+        for subject, roi, fold in np.random.permutation(list(product(subjects, rois, cv_folds))):
             print('Subject: {} - ROI: {} - Fold: {}'.format(subject, roi, fold))
 
             # Check if the evaluation is already done
