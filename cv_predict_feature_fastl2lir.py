@@ -112,14 +112,18 @@ def featdec_cv_fastl2lir_predict(
             folds=cv_folds,
             exclusive=cv_exclusive_array
         )
+        if 'name' in cv_folds[0]:
+            cv_labels = ['cv-{}'.format(cv['name']) for cv in cv_folds]
+        else:
+            cv_labels = ['cv-fold{}'.format(icv + 1) for icv in range(len(cv_folds))]
 
-        for icv, (train_index, test_index) in enumerate(cv_index):
-            print('CV fold: {} ({} training; {} test)'.format(icv + 1, len(train_index), len(test_index)))
+        for cv_label, (train_index, test_index) in zip(cv_labels, cv_index):
+            print('CV fold: {} ({} training; {} test)'.format(cv_label, len(train_index), len(test_index)))
 
             # Setup
             # -----
-            analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + str(icv + 1) + '-' + layer
-            decoded_feature_dir = os.path.join(output_dir, layer, sbj, roi, 'cv-fold{}'.format(icv + 1), 'decoded_features')
+            analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + cv_label + '-' + layer
+            decoded_feature_dir = os.path.join(output_dir, layer, sbj, roi, cv_label, 'decoded_features')
 
             if os.path.exists(decoded_feature_dir):
                 print('%s is already done. Skipped.' % analysis_id)
@@ -148,7 +152,8 @@ def featdec_cv_fastl2lir_predict(
             if average_sample:
                 brain_labels_unique = np.unique(brain_labels)
                 brain_labels_unique = [lb for lb in brain_labels_unique if lb not in excluded_labels]
-                brain = np.vstack([np.mean(brain[(np.array(brain_labels) == lb).flatten(), :], axis=0) for lb in brain_labels_unique])
+                brain = np.vstack([np.mean(brain[(np.array(brain_labels) == lb).flatten(), :], axis=0)
+                                   for lb in brain_labels_unique])
             else:
                 # Label + sample no.
                 brain_labels_unique = ['trial_{:04}-{}'.format(i + 1, lb) for i, lb in enumerate(brain_labels)]
@@ -157,7 +162,7 @@ def featdec_cv_fastl2lir_predict(
 
             # Model directory
             # ---------------
-            model_dir = os.path.join(decoder_path, layer, sbj, roi, 'cv-fold{}'.format(icv + 1), 'model')
+            model_dir = os.path.join(decoder_path, layer, sbj, roi, cv_label, 'model')
 
             # Preprocessing
             # -------------

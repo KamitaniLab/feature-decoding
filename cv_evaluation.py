@@ -217,7 +217,7 @@ def featdec_cv_eval(
 # Entry point ################################################################
 
 if __name__ == '__main__':
- 
+
     cfg = init_hydra_cfg()
 
     decoded_feature_path = cfg["decoded_feature"]["path"]
