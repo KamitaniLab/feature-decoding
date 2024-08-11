@@ -129,6 +129,7 @@ def featdec_cv_fastl2lir_predict(
 
             if not distcomp.lock(analysis_id):
                 print('%s is already running. Skipped.' % analysis_id)
+                continue
 
             # Preparing data
             # --------------
