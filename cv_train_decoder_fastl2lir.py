@@ -161,21 +161,28 @@ def featdec_cv_fastl2lir_train(
             brain = select_data_multi_bdatas(data_brain[sbj], rois[roi])
             brain_labels = get_labels_multi_bdatas(data_brain[sbj], label_key)
 
+            # Extract training samples
             brain = brain[train_index, :]
             brain_labels = np.array(brain_labels)[train_index]
 
-            # Features
-            feat_labels = np.unique(brain_labels)
-            feat = get_multi_features(data_features, layer, labels=feat_labels)
+            # Get features labels
+            feat_labels = []
+            for data_feature in data_features:
+                feat_labels.append(data_feature.labels)
+            feat_labels = np.hstack(feat_labels)
 
             # Use brain data that has a label included in feature data
             brain = np.vstack([_b for _b, bl in zip(brain, brain_labels) if bl in feat_labels])
             brain_labels = [bl for bl in brain_labels if bl in feat_labels]
 
+            # Features
+            feat_labels = np.unique(brain_labels)
+            feat = get_multi_features(data_features, layer, labels=feat_labels)
+            
             # Index to sort features by brain data (matching samples)
             feat_index = np.array([np.where(np.array(feat_labels) == bl) for bl in brain_labels]).flatten()
 
-            # Get training samples of Y
+            # Get training samples of Y for get mean and norm parameters
             feat_train = feat[feat_index, :]
 
             print('Elapsed time (data preparation): %f' % (time() - start_time))
