@@ -22,13 +22,21 @@ def main(cfg):
 
         # Downloading
         if not os.path.exists(output):
-            print(f'Downloading {output} from {fl["url"]}')
-            download_file(fl['url'], output, progress_bar=True, md5sum=fl['md5sum'])
+            if isinstance(fl['url'], 'str'):
+                print(f'Downloading {output} from {fl["url"]}')
+                download_file(fl['url'], output, progress_bar=True, md5sum=fl['md5sum'])
+            else:
+                # fl['url'] and fl['md5sum'] are lists
+                for url, md5 in zip(fl['url'], fl['md5sum']):
+                    print(f'Downloading {output} from {url}')
+                    download_file(url, output, progress_bar=True, md5sum=md5)
 
         # Postprocessing
         if 'postproc' in fl:
             for pp in fl['postproc']:
-                if pp['name'] == 'unzip':
+                if pp['name'] == 'merge':
+                    pass
+                elif pp['name'] == 'unzip':
                     print(f'Unzipping {output}')
                     if 'destination' in pp:
                         dest = pp['destination']
