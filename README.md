@@ -17,7 +17,18 @@ $ pip install -r requirements.txt
 
 ### Data setup
 
-TBA
+Run the following commands in `data` directory to download required fMRI and DNN features.
+
+```shell
+# In "./data" directory:
+
+# fMRI data (collected by Shen et al., 2019)
+python download.py fmri_deeprecon_fmriprep_vc 
+
+# DNN features (VGG-19)
+python download.py features_imagenet_training_vgg19
+python download.py features_imagenet_test_vgg19
+```
 
 ### Decoding with PyFastL2LiR
 
