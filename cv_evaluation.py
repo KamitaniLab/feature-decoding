@@ -113,11 +113,16 @@ def featdec_cv_eval(
                 continue
 
             pred_y = decoded_features.get(layer=layer, subject=subject, roi=roi, fold=fold)
-            pred_labels = decoded_features.selected_label
+            pred_labels = np.array(decoded_features.selected_label)
 
             if not average_sample:
                 pred_labels = [re.match('trial_\d*-(.*)', x).group(1) for x in pred_labels]
 
+            # Use predicted data that has a label included in true_labels
+            selector = np.array([True if p in true_labels else False for p in pred_labels])
+            pred_y = pred_y[selector, :]
+            pred_labels = pred_labels[selector]
+            
             if not np.array_equal(pred_labels, true_labels):
                 y_index = [np.where(np.array(true_labels) == x)[0][0] for x in pred_labels]
                 true_y_sorted = true_y[y_index]
