@@ -678,23 +678,5 @@
                 "postproc": [{"name": "unzip", "destination": "./"}]
             }
         ]
-    },
-    "merge_test": {
-        "save_in": "./",
-        "files": [
-            {
-                "name":   "file.zip",
-                "url":    [
-                    "https://ndownloader.figshare.com/files/48265708",
-                ],
-                "md5sum": [
-                    "57826c7eb461885e72c6a24f4ade8558",
-                ],
-                "postproc": [
-                    {"name": "merge"},
-                    {"name": "unzip", "destination": "./"}
-                ]
-            }
-        ]
     }
 }

@@ -22,7 +22,7 @@ def main(cfg):
 
         # Downloading
         if not os.path.exists(output):
-            if isinstance(fl['url'], 'str'):
+            if isinstance(fl['url'], str):
                 print(f'Downloading {output} from {fl["url"]}')
                 download_file(fl['url'], output, progress_bar=True, md5sum=fl['md5sum'])
             else:
