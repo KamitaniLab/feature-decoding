@@ -8,7 +8,7 @@ decoder:
     chunk_axis: 1
 
   fmri:
-    name: ImageNetTraining_fmriprep_volume_native
+    name: ImageNetTraining_fmriprep_volume_native_vc
     subjects:
       #- name: sub-01
       #  paths:
@@ -68,7 +68,7 @@ decoded_feature:
     path: ./data/feature_decoders/ImageNetTraining/${decoder.name}/${decoder.features.name}
 
   fmri:
-    name: ImageNetTest_fmriprep_volume_native
+    name: ImageNetTest_fmriprep_volume_native_vc
     subjects:
       #- name: sub-01
       #  paths:
