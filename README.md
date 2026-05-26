@@ -6,13 +6,14 @@ This repository provides scripts of deep neural network (DNN) feature decoding f
 
 ### Environment setup
 
-Please setup Python environment where packages in [requirements.txt](requirements.txt) are installed.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and then run:
 
 ```shell
-# Using venv
-$ python -m venv .venv
+# Create .venv and install all dependencies (reads pyproject.toml / uv.lock)
+$ uv sync
+
+# Activate (optional; scripts can also be run via `uv run python ...`)
 $ . .venv/bin/activate
-$ pip install -r requirements.txt
 ```
 
 ### Data setup
