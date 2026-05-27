@@ -94,7 +94,7 @@ decoded_feature:
       - {name: HVC, select: ROI_HVC = 1}
       - {name: VC,  select: ROI_VC = 1}
     label_key: stimulus_name
-    exclude_labels:
+    exclude_labels: []
 
   features:
     name: caffe/VGG19
@@ -181,7 +181,7 @@ cv:
   #   - train: [1, 2, 3, 4]
   #     test: [5]
 
-  # In each CV fold, the training samples are removed if they have overlapping 
+  # In each CV fold, the training samples are removed if they have overlapping
   # values of `cv exclusive key` with the test samples so that the training and
   # test samples do not have overlapping values for `cv exclusive key`.
   # Set `null` if not specified.
