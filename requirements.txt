@@ -1,7 +1,0 @@
-bdpy>=0.24
-fastl2lir
-hydra-core
-matplotlib
-numpy<2.0.0
-pyyaml
-tqdm

@@ -6,13 +6,14 @@ This repository provides scripts of deep neural network (DNN) feature decoding f
 
 ### Environment setup
 
-Please setup Python environment where packages in [requirements.txt](requirements.txt) are installed.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and then run:
 
 ```shell
-# Using venv
-$ python -m venv .venv
+# Create .venv and install all dependencies (reads pyproject.toml / uv.lock)
+$ uv sync
+
+# Activate (optional; scripts can also be run via `uv run python ...`)
 $ . .venv/bin/activate
-$ pip install -r requirements.txt
 ```
 
 ### Data setup
@@ -23,7 +24,7 @@ Run the following commands in `data` directory to download required fMRI and DNN
 # In "./data" directory:
 
 # fMRI data (collected by Shen et al., 2019)
-python download.py fmri_deeprecon_fmriprep_vc 
+python download.py fmri_deeprecon_fmriprep_vc
 
 # DNN features (VGG-19)
 python download.py features_imagenet_training_vgg19
@@ -60,7 +61,7 @@ $ python evaluation.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 $ python train_decoder_sklearn_ridge.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 
 # Prediction of DNN features
-$ python preeict_feature.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python predict_feature.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 
 # Evaluation
 $ python evaluation.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml

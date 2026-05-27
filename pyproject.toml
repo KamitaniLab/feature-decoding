@@ -1,0 +1,19 @@
+[project]
+name = "feature-decoding"
+version = "0.1.0"
+description = "DNN feature decoding from fMRI brain activities (Horikawa & Kamitani, 2017)"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "bdpy>=0.24",
+    "fastl2lir",
+    "hydra-core",
+    "matplotlib",
+    "numpy<2.0.0",
+    "pyyaml",
+    "tqdm",
+]
+
+[tool.uv]
+package = false

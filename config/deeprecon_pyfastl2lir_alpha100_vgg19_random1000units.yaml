@@ -92,7 +92,7 @@ decoded_feature:
       - {name: HVC, select: ROI_HVC = 1}
       - {name: VC,  select: ROI_VC = 1}
     label_key: stimulus_name
-    exclude_labels:
+    exclude_labels: []
 
   target:
     name: caffe/VGG19
