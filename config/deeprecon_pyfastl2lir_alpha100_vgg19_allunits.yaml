@@ -1,44 +1,18 @@
 # fMRI data ##################################################################
 
 training fmri:
-  sub-01:
-    - ./data/fmri/sub-01_ImageNetTraining_fmriprep_volume_native.h5
-  sub-02:
-    - ./data/fmri/sub-02_ImageNetTraining_fmriprep_volume_native.h5
-  sub-03:
-    - ./data/fmri/sub-03_ImageNetTraining_fmriprep_volume_native.h5
+  MT:
+    - /home/kiss/data/fmri_shared/datasets/Deeprecon/fmriprep/MT_ImageNetTrainingV2_volume_native_fmap_rep3.h5
 
 test fmri:
-  sub-01:
-    - ./data/fmri/sub-01_ImageNetTest_fmriprep_volume_native.h5
-  sub-02:
-    - ./data/fmri/sub-02_ImageNetTest_fmriprep_volume_native.h5
-  sub-03:
-    - ./data/fmri/sub-03_ImageNetTest_fmriprep_volume_native.h5
+  MT:
+    - /home/kiss/data/fmri_shared/art/MT260706/bdata/MT260706_ArtImage_volume_native_Wien2D_fmap_prep.h5
 
 rois:
-  V1:  ROI_V1 = 1
-  V2:  ROI_V2 = 1
-  V3:  ROI_V3 = 1
-  V4:  ROI_hV4 = 1
-  LOC: ROI_LOC = 1
-  FFA: ROI_FFA = 1
-  PPA: ROI_PPA = 1
-  LVC: ROI_LVC = 1
-  HVC: ROI_HVC = 1
   VC:  ROI_VC = 1
 
 # The number of voxels used in feature decoding
 rois voxel num:
-  V1:  500
-  V2:  500
-  V3:  500
-  V4:  500
-  LOC: 500
-  FFA: 500
-  PPA: 500
-  LVC: 500
-  HVC: 500
   VC:  500
 
 label key:
@@ -47,13 +21,13 @@ label key:
 # DNN features ###############################################################
 
 training feature dir:
-  - ./data/features/ImageNetTraining
+  - /home/nu/data/contents_shared/ImageNetTraining_v2/derivatives/features
 
-test feature dir:
-  - ./data/features/ImageNetTest
+#test feature dir:
+#  - XXX
 
 network:
-  caffe/VGG19
+  caffe/VGG_ILSVRC_19_layers
 
 layers:
   - conv1_1
@@ -79,16 +53,17 @@ layers:
 # Feature decoding ###########################################################
 
 feature decoder dir:
-  ./data/feature_decoders/ImageNetTraining/deeprecon_fmriprep_pyfastl2lir_alpha100_allunits
-
+  /home/nu/data/contents_shared/ImageNetTraining_v2/derivatives/feature_decoders/deeprecon_fmriprep_fmap_rep3_500voxel_allunits_fastl2lir_alpha100
 # Decoded features
 decoded feature dir:
-  ./data/decoded_features/ImageNetTest/deeprecon_fmriprep_pyfastl2lir_alpha100_allunits
+  /home/nu/mmitsuoka/project/art/ted26/derivatives/decoded_features/ArtImage_Wien2D_fmap
 
 # Learning parameters
 alpha: 100
 chunk axis: 1
 
+test single trial: false
+
 # Figure output
-decoding figure dir:
-  ./data/figures/feature_decoding/ImageNetTest/deeprecon_fmriprep_pyfastl2lir_alpha100_allunits
+#decoding figure dir:
+  #./data/figures/feature_decoding/ImageNetTest/deeprecon_fmriprep_pyfastl2lir_alpha100_allunits
