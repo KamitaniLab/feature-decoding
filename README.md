@@ -85,6 +85,22 @@ $ python cv_predict_feature_fastl2lir.py config/deeprecon_cv_pyfastl2lir_alpha10
 $ python cv_evaluation.py config/deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits.yaml
 ```
 
+### Tests
+
+The test suite runs on small synthetic data generated on the fly; no downloaded
+dataset is required.
+
+```shell
+# Install the test dependencies and run the suite
+$ uv sync --group dev
+$ uv run pytest
+```
+
+`tests/data/golden/` holds regression fixtures recording the numerical output of
+the decoding pipeline. Regenerate them with
+`uv run python -m tests.generate_golden` only when the expected output is meant
+to change, and say so explicitly in the commit message.
+
 ## References
 
 - Horikawa and Kamitani (2017) Generic decoding of seen and imagined objects using hierarchical visual features. *Nature Communications* 8:15037. https://www.nature.com/articles/ncomms15037
