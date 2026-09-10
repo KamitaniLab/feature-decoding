@@ -19,8 +19,7 @@ CHUNK_AXIS = 1
 
 
 def test_output_layout_and_dtype(dataset, decoder_dir, decoded_dir):
-    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA,
-                          chunk_axis=CHUNK_AXIS)
+    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA)
     pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                             chunk_axis=CHUNK_AXIS)
 
@@ -44,8 +43,7 @@ def test_output_layout_and_dtype(dataset, decoder_dir, decoded_dir):
 def test_average_sample_averages_repetitions(dataset, decoder_dir,
                                              decoded_dir):
     """With ``average_sample`` on, one file per unique stimulus is written."""
-    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA,
-                          chunk_axis=CHUNK_AXIS)
+    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA)
     pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                             chunk_axis=CHUNK_AXIS, average_sample=True)
 
@@ -57,8 +55,7 @@ def test_average_sample_averages_repetitions(dataset, decoder_dir,
 
 def test_single_trial_output_names(dataset, decoder_dir, decoded_dir):
     """With ``average_sample`` off, files are ``sample%06d-<label>.mat``."""
-    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA,
-                          chunk_axis=CHUNK_AXIS)
+    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA)
     pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                             chunk_axis=CHUNK_AXIS, average_sample=False)
 
@@ -71,8 +68,7 @@ def test_single_trial_output_names(dataset, decoder_dir, decoded_dir):
 
 def test_excluded_labels_are_dropped_when_averaging(dataset, decoder_dir,
                                                     decoded_dir):
-    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA,
-                          chunk_axis=CHUNK_AXIS)
+    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA)
     excluded = [dataset.unique_test_labels[0]]
     pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                             chunk_axis=CHUNK_AXIS, average_sample=True,
@@ -85,8 +81,7 @@ def test_excluded_labels_are_dropped_when_averaging(dataset, decoder_dir,
 
 def test_existing_output_directory_is_skipped(dataset, decoder_dir,
                                               decoded_dir):
-    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA,
-                          chunk_axis=CHUNK_AXIS)
+    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA)
     pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                             chunk_axis=CHUNK_AXIS)
 
@@ -105,8 +100,7 @@ def test_existing_output_directory_is_skipped(dataset, decoder_dir,
 def test_prediction_uses_the_decoders_brain_normalization(dataset, decoder_dir,
                                                           decoded_dir):
     """Test brain data is z-scored with the *training* mean/SD, not its own."""
-    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA,
-                          chunk_axis=CHUNK_AXIS)
+    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA)
     pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                             chunk_axis=CHUNK_AXIS)
 
