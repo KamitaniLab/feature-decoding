@@ -58,14 +58,23 @@ $ python evaluation.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 
 ```shell
 # Training of decoding models
-$ python train_decoder_sklearn_ridge.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python train_decoder_sklearn_ridge.py config/deeprecon_sklearn_ridge_alpha100_vgg19_allunits.yaml
 
 # Prediction of DNN features
-$ python predict_feature.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python predict_feature.py config/deeprecon_sklearn_ridge_alpha100_vgg19_allunits.yaml
 
 # Evaluation
-$ python evaluation.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
+$ python evaluation.py config/deeprecon_sklearn_ridge_alpha100_vgg19_allunits.yaml
 ```
+
+The scikit-learn Ridge decoder is trained and stored in a factorized form: the
+model maps brain activity onto the training stimulus basis, and prediction
+combines its coefficients with the training features. This is mathematically
+identical to regressing the features directly, but the stored decoder is much
+smaller and training does not scale with the feature dimension.
+`predict_feature.py` therefore reads the training features
+(`decoder.features.paths`, already set in the example config). See
+`ridge_factorization.py` for the details.
 
 ### Cross-validation feature decoding
 
@@ -84,6 +93,22 @@ $ python cv_predict_feature_fastl2lir.py config/deeprecon_cv_pyfastl2lir_alpha10
 # Evaluation
 $ python cv_evaluation.py config/deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits.yaml
 ```
+
+### Tests
+
+The test suite runs on small synthetic data generated on the fly; no downloaded
+dataset is required.
+
+```shell
+# Install the test dependencies and run the suite
+$ uv sync --group dev
+$ uv run pytest
+```
+
+`tests/data/golden/` holds regression fixtures recording the numerical output of
+the decoding pipeline. Regenerate them with
+`uv run python -m tests.generate_golden` only when the expected output is meant
+to change, and say so explicitly in the commit message.
 
 ## References
 
