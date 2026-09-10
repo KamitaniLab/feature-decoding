@@ -34,6 +34,12 @@ from sklearn.linear_model import Ridge
 
 CHUNK_NDIM = 2  # bdpy ModelTraining default
 
+# What the *direct* implementation stored per decoder. The factorized decoder
+# keeps only the brain half (`pipeline.BRAIN_NORM_KEYS`); the feature half is a
+# property of the features a prediction combines and lives next to the decoded
+# features.
+NORM_KEYS = ('x_mean', 'x_norm', 'y_mean', 'y_norm')
+
 
 def brain_norm_params(brain: np.ndarray):
     """``(mean, std)`` of the brain data, shaped ``(1, n_voxels)``."""
@@ -162,3 +168,36 @@ def single_trial_labels(labels: Sequence[str]) -> List[str]:
 
 def clone_trained(trained: Dict[str, Any]) -> Dict[str, Any]:
     return copy.deepcopy(trained)
+
+
+def write_legacy_decoder(model_dir: str, trained: Dict[str, Any]) -> None:
+    """Write ``trained`` in the pre-factorization on-disk decoder format.
+
+    One pickle per chunk (``%08d.pkl.gz``, or ``model.pkl.gz`` when the target
+    was not chunked) holding ``{'model': ..., 'y_shape': ...}``, the four
+    normalization ``.mat`` files, and an ``info.yaml`` completion marker.  Used
+    to test that the current prediction script can still read decoders produced
+    by the direct implementation.
+    """
+    import os
+    import pickle
+
+    import yaml
+    from bdpy.dataform import save_array
+
+    os.makedirs(model_dir, exist_ok=True)
+
+    for key in ('x_mean', 'x_norm', 'y_mean', 'y_norm'):
+        save_array(os.path.join(model_dir, key + '.mat'), trained[key],
+                   key=key, dtype=np.float32, sparse=False)
+
+    for i, entry in enumerate(trained['models']):
+        name = ('%08d.pkl.gz' % i) if trained['chunking'] else 'model.pkl.gz'
+        with open(os.path.join(model_dir, name), 'wb') as f:
+            pickle.dump({'model': entry['model'], 'y_shape': entry['y_shape']},
+                        f, protocol=4)
+
+    with open(os.path.join(model_dir, 'info.yaml'), 'w') as f:
+        f.write(yaml.dump({'_status': {'computation_id': 'legacy',
+                                       'computation_status': 'done'}},
+                          default_flow_style=False))

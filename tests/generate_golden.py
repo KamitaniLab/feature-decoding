@@ -45,8 +45,7 @@ def build(work_dir: str) -> dict:
         decoder_dir = os.path.join(work_dir, 'feature_decoders')
         decoded_dir = os.path.join(work_dir, 'decoded_features')
 
-        pipeline.run_training(dataset, decoder_dir, alpha=ALPHA,
-                              chunk_axis=CHUNK_AXIS)
+        pipeline.run_training(dataset, decoder_dir, alpha=ALPHA)
         pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                                 chunk_axis=CHUNK_AXIS)
 
@@ -63,8 +62,11 @@ def build(work_dir: str) -> dict:
             for subject in sorted(dataset.train_fmri):
                 for roi in sorted(dataset.rois):
                     prefix = '%s|%s|%s|' % (layer, subject, roi)
-                    for key, value in pipeline.read_norm_params(
-                            decoder_dir, layer, subject, roi).items():
+                    values = pipeline.read_norm_params(decoder_dir, subject,
+                                                       roi)
+                    values.update(pipeline.read_feature_statistics(
+                        decoder_dir, layer, subject, roi))
+                    for key, value in values.items():
                         golden[prefix + key] = value
                     golden[prefix + 'pred'] = pipeline.read_decoded_features(
                         decoded_dir, layer, subject, roi,

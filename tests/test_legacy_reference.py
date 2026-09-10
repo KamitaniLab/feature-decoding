@@ -39,8 +39,7 @@ def reference_prediction(dataset, layer, subject, roi, alpha=ALPHA,
 
 @pytest.fixture
 def pipeline_outputs(dataset, decoder_dir, decoded_dir):
-    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA,
-                          chunk_axis=CHUNK_AXIS)
+    pipeline.run_training(dataset, decoder_dir, alpha=ALPHA)
     pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                             chunk_axis=CHUNK_AXIS)
     return decoder_dir, decoded_dir
@@ -64,9 +63,10 @@ def test_reference_matches_scripts(dataset, pipeline_outputs):
                     err_msg='prediction mismatch for %s/%s/%s'
                             % (layer, subject, roi))
 
-                saved = pipeline.read_norm_params(decoder_dir, layer, subject,
-                                                  roi)
-                for key in pipeline.NORM_KEYS:
+                saved = pipeline.read_norm_params(decoder_dir, subject, roi)
+                saved.update(pipeline.read_feature_statistics(
+                    decoder_dir, layer, subject, roi))
+                for key in legacy_ridge.NORM_KEYS:
                     np.testing.assert_allclose(
                         saved[key], trained[key].astype(np.float32),
                         rtol=1e-6, atol=1e-7,
@@ -91,7 +91,7 @@ def test_reference_matches_golden(dataset):
                 np.testing.assert_allclose(
                     golden[prefix + 'pred'], expected.astype(np.float32),
                     rtol=1e-5, atol=1e-6)
-                for key in pipeline.NORM_KEYS:
+                for key in legacy_ridge.NORM_KEYS:
                     np.testing.assert_allclose(
                         golden[prefix + key], trained[key].astype(np.float32),
                         rtol=1e-6, atol=1e-7)

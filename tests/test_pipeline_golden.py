@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from tests.conftest import GOLDEN_DIR
-from tests.helpers import pipeline
+from tests.helpers import legacy_ridge, pipeline
 
 GOLDEN_FILE = os.path.join(GOLDEN_DIR, 'sklearn_ridge_pipeline.npz')
 
@@ -32,8 +32,7 @@ def test_pipeline_reproduces_golden(dataset, decoder_dir, decoded_dir, golden):
     alpha = int(golden['_alpha'])
     chunk_axis = int(golden['_chunk_axis'])
 
-    pipeline.run_training(dataset, decoder_dir, alpha=alpha,
-                          chunk_axis=chunk_axis)
+    pipeline.run_training(dataset, decoder_dir, alpha=alpha)
     pipeline.run_prediction(dataset, decoder_dir, decoded_dir,
                             chunk_axis=chunk_axis)
 
@@ -51,9 +50,13 @@ def test_pipeline_reproduces_golden(dataset, decoder_dir, decoded_dir, golden):
                     err_msg='decoded features drifted for %s/%s/%s'
                             % (layer, subject, roi))
 
-                saved = pipeline.read_norm_params(decoder_dir, layer, subject,
-                                                  roi)
-                for key in pipeline.NORM_KEYS:
+                saved = pipeline.read_norm_params(decoder_dir, subject, roi)
+                # The feature statistics are written by prediction now, but
+                # into the same place and with the same values the direct
+                # implementation produced.
+                saved.update(pipeline.read_feature_statistics(
+                    decoder_dir, layer, subject, roi))
+                for key in legacy_ridge.NORM_KEYS:
                     np.testing.assert_allclose(
                         saved[key], golden[prefix + key],
                         rtol=1e-6, atol=1e-7,

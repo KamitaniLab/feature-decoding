@@ -219,3 +219,56 @@ def make_dataset(root: str, seed: int = 0,
         unique_train_labels=unique_train_labels,
         unique_test_labels=unique_test_labels,
     )
+
+
+def add_layer(dataset: SyntheticDataset, name: str, shape: Tuple[int, ...],
+              seed: int = 1) -> np.ndarray:
+    """Add one more feature layer to an existing dataset's feature tree."""
+    rng = np.random.RandomState(seed)
+    n_stimuli = len(dataset.unique_train_labels)
+    array = rng.randn(n_stimuli, *shape).astype(np.float32)
+    write_features(dataset.train_features_dir, {name: shape},
+                   dataset.unique_train_labels, {name: array})
+    dataset.layer_shapes[name] = shape
+    dataset.features[name] = array
+    return array
+
+
+def write_test_features(dataset: SyntheticDataset, seed: int = 21) -> str:
+    """Write a ``Features`` tree for the *test* stimuli and return its path.
+
+    ``evaluation.py`` compares the decoded features against the true features
+    of the test stimuli, which the training dataset does not contain.
+    """
+    root = os.path.join(dataset.root, 'features', 'test')
+    write_feature_tree(root, dataset.layer_shapes, dataset.unique_test_labels,
+                       seed=seed)
+    return root
+
+
+def write_feature_index(path: str,
+                        index_by_layer: Dict[str, Sequence[int]]) -> None:
+    """Write a feature-index ``.mat`` as ``Features(feature_index=...)`` expects.
+
+    bdpy reads it as ``hdf5storage.loadmat(path)['index']`` and then indexes the
+    result by layer name, so ``index`` is a mapping from layer to a 1-D array of
+    zero-based column indices into the C-order-flattened features.
+    """
+    import hdf5storage
+
+    payload = {layer: np.asarray(index).ravel()
+               for layer, index in index_by_layer.items()}
+    os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+    hdf5storage.savemat(path, {'index': payload}, format='7.3',
+                        oned_as='column', store_python_metadata=True)
+
+
+def write_feature_tree(root: str, layer_shapes: Dict[str, Tuple[int, ...]],
+                       labels: Sequence[str], seed: int = 0
+                       ) -> Dict[str, np.ndarray]:
+    """Write an independent ``Features`` tree and return its arrays."""
+    rng = np.random.RandomState(seed)
+    arrays = {layer: rng.randn(len(labels), *shape).astype(np.float32)
+              for layer, shape in layer_shapes.items()}
+    write_features(root, layer_shapes, labels, arrays)
+    return arrays
