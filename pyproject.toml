@@ -12,8 +12,29 @@ dependencies = [
     "matplotlib",
     "numpy<2.0.0",
     "pyyaml",
+    "scikit-learn",
     "tqdm",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
 ]
 
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+# The analysis scripts are top-level modules rather than an installed package,
+# so the repository root has to be importable. `pythonpath` states that
+# explicitly instead of relying on pytest's implicit rootdir insertion.
+pythonpath = ["."]
+markers = [
+    "slow: tests that take more than a few seconds",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
