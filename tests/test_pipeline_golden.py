@@ -21,7 +21,8 @@ GOLDEN_FILE = os.path.join(GOLDEN_DIR, 'sklearn_ridge_pipeline.npz')
 
 @pytest.fixture(scope='module')
 def golden():
-    return np.load(GOLDEN_FILE)
+    with np.load(GOLDEN_FILE) as f:
+        yield f
 
 
 def test_golden_fixture_is_present(golden):

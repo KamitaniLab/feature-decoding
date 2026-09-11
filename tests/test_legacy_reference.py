@@ -76,22 +76,22 @@ def test_reference_matches_scripts(dataset, pipeline_outputs):
 
 def test_reference_matches_golden(dataset):
     """The reference reproduces the committed pre-factorization fixtures."""
-    golden = np.load(os.path.join(GOLDEN_DIR, 'sklearn_ridge_pipeline.npz'))
-    assert int(golden['_alpha']) == ALPHA
-    assert int(golden['_chunk_axis']) == CHUNK_AXIS
+    with np.load(os.path.join(GOLDEN_DIR, 'sklearn_ridge_pipeline.npz')) as golden:
+        assert int(golden['_alpha']) == ALPHA
+        assert int(golden['_chunk_axis']) == CHUNK_AXIS
 
-    for layer in [str(x) for x in golden['_layers']]:
-        for subject in [str(x) for x in golden['_subjects']]:
-            for roi in [str(x) for x in golden['_rois']]:
-                trained, expected, test_labels = reference_prediction(
-                    dataset, layer, subject, roi)
-                assert test_labels == [str(x) for x in golden['_test_labels']]
+        for layer in [str(x) for x in golden['_layers']]:
+            for subject in [str(x) for x in golden['_subjects']]:
+                for roi in [str(x) for x in golden['_rois']]:
+                    trained, expected, test_labels = reference_prediction(
+                        dataset, layer, subject, roi)
+                    assert test_labels == [str(x) for x in golden['_test_labels']]
 
-                prefix = '%s|%s|%s|' % (layer, subject, roi)
-                np.testing.assert_allclose(
-                    golden[prefix + 'pred'], expected.astype(np.float32),
-                    rtol=1e-5, atol=1e-6)
-                for key in pipeline.NORM_KEYS:
+                    prefix = '%s|%s|%s|' % (layer, subject, roi)
                     np.testing.assert_allclose(
-                        golden[prefix + key], trained[key].astype(np.float32),
-                        rtol=1e-6, atol=1e-7)
+                        golden[prefix + 'pred'], expected.astype(np.float32),
+                        rtol=1e-5, atol=1e-6)
+                    for key in pipeline.NORM_KEYS:
+                        np.testing.assert_allclose(
+                            golden[prefix + key], trained[key].astype(np.float32),
+                            rtol=1e-6, atol=1e-7)
