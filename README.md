@@ -49,9 +49,9 @@ $ python predict_feature_fastl2lir.py config/deeprecon_pyfastl2lir_alpha100_vgg1
 $ python evaluation.py config/deeprecon_pyfastl2lir_alpha100_vgg19_allunits.yaml
 ```
 
-### Decoding with generic regression models
+### Decoding with scikit-learn Ridge regression
 
-- Training: `train_decoder_sklearn_ridge.py` (example for scikit-learn Ridge regression)
+- Training: `train_decoder_sklearn_ridge.py`
 - Test (prediction): `predict_feature.py`
 - Evaluation: `evaluation.py`
 - Example config file: [deeprecon_sklearn_ridge_alpha100_vgg19_allunits](config/deeprecon_sklearn_ridge_alpha100_vgg19_allunits.yaml)
@@ -78,7 +78,7 @@ smaller and training does not scale with the feature dimension.
 
 ### Cross-validation feature decoding
 
-- Training: `cv_train_decoder_fastl2lir.py` (example for scikit-learn Ridge regression)
+- Training: `cv_train_decoder_fastl2lir.py`
 - Test (prediction): `cv_predict_feature_fastl2lir.py`
 - Evaluation: `cv_evaluation.py`
 - Example config file: [deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits](config/deeprecon_cv_pyfastl2lir_alpha100_vgg19_allunits.yaml)
