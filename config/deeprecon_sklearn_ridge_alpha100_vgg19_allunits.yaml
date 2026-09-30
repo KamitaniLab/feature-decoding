@@ -5,6 +5,7 @@ decoder:
   path: ./data/feature_decoders/ImageNetTraining/${decoder.name}/${decoder.features.name}
   parameters:
     alpha: 100
+    # Axis along which the feature combination is blocked at prediction time.
     chunk_axis: 1
 
   fmri:
@@ -34,6 +35,7 @@ decoder:
 
   features:
     name: caffe/VGG19
+    # Features of the training stimuli; also read by `predict_feature.py`.
     paths:
       - ./data/features/ImageNetTraining/${decoder.features.name}
     layers:

@@ -17,7 +17,7 @@ These settings are used by the decoder training script (e.g., `train_decoder_fas
   - `decoder.path`: Defines the path where the decoder data is located. The path can include placeholders like `${decoder.name}` and `${decoder.features.name}` to dynamically set paths based on the feature name.
   - `decoder.parameters`:
     - `alpha`: A regularization parameter set to 100.
-    - `chunk_axis`: Indicates that chunking is done along axis 1.
+    - `chunk_axis`: Indicates that chunking is done along axis 1. For the sklearn Ridge decoder it applies to the prediction step only.
 2. fMRI data
   - This specifies fMRI data used for the decoder training.
   - `decoder.fmri.name`: Refers to the dataset name, here "ImageNetTraining_fmriprep_volume_native".
@@ -27,7 +27,7 @@ These settings are used by the decoder training script (e.g., `train_decoder_fas
 3. Features
   - This specifies features used for the decoder training.
   - `decoder.features.name`: Refers to the pre-trained DNN model used.
-  - `decoder.features.paths`: Provides the path to the feature data.
+  - `decoder.features.paths`: Provides the path to the feature data. The factorized sklearn Ridge decoder reads these at prediction time as well, as the features of the training stimuli.
   - `decoder.features.layers`: Specifies the layers of the DNN from which features will be extracted.
 
 ## Decoded features

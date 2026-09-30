@@ -1,12 +1,20 @@
-'''DNN Feature decoding - feature prediction script.'''
+'''DNN Feature decoding - feature prediction script.
+
+Decoders trained by ``train_decoder_sklearn_ridge.py`` are factorized (see
+``ridge_factorization``), so prediction runs in two steps: predict one
+coefficient per training stimulus, then combine those coefficients with the
+training features of the layer being decoded.  Decoders saved by the earlier,
+direct implementation are detected automatically and predicted as before.
+'''
 
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, Optional, Sequence
 
 from itertools import product
 import os
 import shutil
 from time import time
+import warnings
 
 import bdpy
 from bdpy.dataform import load_array, save_array
@@ -14,8 +22,145 @@ from bdpy.distcomp import DistComp
 from bdpy.ml import ModelTest
 from bdpy.pipeline.config import init_hydra_cfg
 from bdpy.util import makedir_ifnot
-from fastl2lir import FastL2LiR
 import numpy as np
+
+from ridge_factorization import (
+    FEATURE_INDEX_FILE,
+    TrainingFeatureLoader,
+    brain_model_dir,
+    check_column_correspondence,
+    combine_features,
+    feature_statistics,
+    is_factorized_model_dir,
+    layer_model_dir,
+    load_factorized_model,
+    resolve_feature_index_path,
+    save_array_atomic,
+)
+
+
+# Prediction back ends #######################################################
+
+class FeatureStatistics(object):
+    """``y_mean``/``y_norm`` of the training features, cached per label set.
+
+    They depend on ``(layer, ordered training labels)`` only -- never on the
+    ROI -- and at DeepRecon scale each computation is two passes over a 15 GB
+    tensor, so they are computed once and reused for every decoder directory.
+    """
+
+    def __init__(self):
+        self._cache = {}
+
+    def get(self, layer: str, train_labels: Sequence[str],
+            features: np.ndarray):
+        key = (layer, tuple(train_labels))
+        if key not in self._cache:
+            self._cache[key] = feature_statistics(features)
+        return self._cache[key]
+
+
+def _feature_statistics_paths(decoder_path: str, layer: str, subject: str,
+                              roi: str) -> Dict[str, str]:
+    directory = layer_model_dir(decoder_path, layer, subject, roi)
+    return {key: os.path.join(directory, '%s.mat' % key)
+            for key in ('y_mean', 'y_norm')}
+
+
+def missing_feature_statistics(decoder_path: str, layer: str, subject: str,
+                               roi: str) -> bool:
+    """Whether ``evaluation.py``'s sidecars still have to be produced.
+
+    Checked before the decoder is read, so an already-complete run touches
+    neither the model nor the features.
+    """
+    return not all(os.path.exists(path) for path in _feature_statistics_paths(
+        decoder_path, layer, subject, roi).values())
+
+
+def _materialize_feature_statistics(decoder_path: str, layer: str,
+                                    subject: str, roi: str,
+                                    train_labels: Sequence[str],
+                                    feature_loader: TrainingFeatureLoader,
+                                    statistics: FeatureStatistics) -> None:
+    """Fill in the ``y_mean``/``y_norm`` that ``evaluation.py`` reads.
+
+    Compatibility sidecars, not parameters of the model: prediction never reads
+    them, and training cannot produce them because it never opens a feature
+    file, so the step that has the features writes them.  Only when missing --
+    one decoder directory belongs to one training feature configuration -- and
+    atomically, since parallel prediction workers can reach the same path.
+
+    Takes the ordered training labels rather than the decoder: the statistics
+    are a property of the features, not of the estimator.
+    """
+    targets = _feature_statistics_paths(decoder_path, layer, subject, roi)
+    features = feature_loader.get(layer, train_labels)
+    values = dict(zip(('y_mean', 'y_norm'),
+                      statistics.get(layer, train_labels, features)))
+
+    for key, path in sorted(targets.items()):
+        if os.path.exists(path):
+            continue
+        try:
+            save_array_atomic(path, values[key], key=key, dtype=np.float32)
+            print('Saved %s' % path)
+        except Exception:
+            warnings.warn('Failed to save %s. The decoder directory may be '
+                          'read-only; evaluation.py will not find the training '
+                          'feature statistics.' % path)
+
+
+def _predict_factorized(artifact: Dict[str, Any], model_dir: str,
+                        brain: np.ndarray, layer: str,
+                        chunk_axis: Optional[int],
+                        feature_loader: TrainingFeatureLoader) -> np.ndarray:
+    '''Predict features with a factorized decoder.
+
+    ``brain`` must already be normalized with the decoder's ``x_mean`` /
+    ``x_norm``.  The feature normalization parameters are not needed: they
+    cancel algebraically (``ridge_factorization``), so the prediction is the
+    linear combination of the raw training features.
+
+    The estimator is called directly rather than through ``bdpy.ml.ModelTest``:
+    the target is the stimulus basis, so there is nothing to chunk or reshape,
+    and the decoder has already been read once for this iteration.  The float32
+    cast is what ``ModelTest`` applies to ``X`` before predicting.
+    '''
+    train_labels = artifact['train_labels']
+    features = feature_loader.get(layer, train_labels)
+
+    coefficients = artifact['model'].predict(
+        np.asarray(brain).astype(np.float32))
+    check_column_correspondence(np.asarray(coefficients).shape[1],
+                                train_labels, features, model_dir)
+
+    # np.asarray rather than .astype: the training features can be very large
+    # and are already float32, so this must not copy them.
+    return combine_features(np.asarray(coefficients, dtype=np.float32),
+                            np.asarray(features, dtype=np.float32),
+                            chunk_axis=chunk_axis)
+
+
+def _predict_legacy(model_dir: str, brain: np.ndarray,
+                    chunk_axis: Optional[int]) -> np.ndarray:
+    '''Predict features with a decoder saved by the direct implementation.
+
+    One Ridge model per chunk of the feature dimensions, and the prediction is
+    in normalized feature space, so it has to be un-normalized here.
+    '''
+    feat_mean = load_array(os.path.join(model_dir, 'y_mean.mat'), key='y_mean')  # shape = (1, shape_features)
+    feat_norm = load_array(os.path.join(model_dir, 'y_norm.mat'), key='y_norm')  # shape = (1, shape_features)
+
+    test = ModelTest(None, brain)
+    test.model_format = 'pickle'
+    test.model_path = model_dir
+    test.dtype = np.float32
+    test.chunk_axis = chunk_axis
+
+    feat_pred = test.run()
+
+    return feat_pred * feat_norm + feat_mean
 
 
 # Main #######################################################################
@@ -31,6 +176,7 @@ def featdec_predict(
         excluded_labels=[],
         average_sample=True,
         chunk_axis=1,
+        training_features_paths=None,
         analysis_name="feature_prediction"
 ):
     '''Feature prediction.
@@ -39,6 +185,8 @@ def featdec_predict(
 
     - fmri_data
     - feature_decoder_dir
+    - training_features_paths: directories holding the features of the training
+      stimuli.  Required for decoders in the factorized format.
 
     Output:
 
@@ -64,21 +212,43 @@ def featdec_predict(
     data_brain = {sbj: bdpy.BData(dat_file[0])
                   for sbj, dat_file in fmri_data.items()}
 
+    # Training features of the factorized decoders.  Only the layer currently
+    # being decoded is held in memory (see TrainingFeatureLoader).
+    feature_loader = TrainingFeatureLoader(
+        training_features_paths or [], feature_index_file=feature_index_file)
+    statistics = FeatureStatistics()
+
     # Initialize directories -------------------------------------------
     makedir_ifnot(output_dir)
     makedir_ifnot('tmp')
 
     # Save feature index -----------------------------------------------------
     if feature_index_file is not None:
-        feature_index_save_file = os.path.join(output_dir, 'feature_index.mat')
-        shutil.copy(feature_index_file, feature_index_save_file)
+        # The path as given wins; only when it does not resolve is the feature
+        # store consulted, which is where a factorized decoder's index lives
+        # (`TrainingFeatureLoader` hands the same resolved path to `Features`).
+        feature_index_source = feature_index_file
+        if not os.path.exists(feature_index_source) and training_features_paths:
+            feature_index_source = resolve_feature_index_path(
+                training_features_paths[0], feature_index_file)
+        feature_index_save_file = os.path.join(output_dir, FEATURE_INDEX_FILE)
+        shutil.copy(feature_index_source, feature_index_save_file)
         print('Saved %s' % feature_index_save_file)
 
     # Analysis loop ----------------------------------------------------
     print('----------------------------------------')
     print('Analysis loop')
 
+    # `layer` is the outer loop so that the training features of one layer are
+    # read once and reused for every subject and ROI.
+    current_layer = None
     for layer, sbj, roi in product(layers, fmri_data, rois):
+        if layer != current_layer:
+            # Release the previous layer's training features before loading the
+            # next ones: at most one layer is ever resident.
+            feature_loader.release()
+            current_layer = layer
+
         print('--------------------')
         print('Feature:    %s' % layer)
         print('Subject:    %s' % sbj)
@@ -89,9 +259,42 @@ def featdec_predict(
         analysis_id = analysis_name + '-' + sbj + '-' + roi + '-' + layer
         results_dir_prediction = os.path.join(output_dir, layer, sbj, roi)
 
+        # The brain-side directory is the only discriminator: once prediction
+        # has run once, a factorized decoder's per-layer directory looks like a
+        # legacy decoder directory from the outside.
+        shared_dir = brain_model_dir(decoder_path, sbj, roi)
+        factorized = is_factorized_model_dir(shared_dir)
+        model_dir = (shared_dir if factorized
+                     else layer_model_dir(decoder_path, layer, sbj, roi))
+
+        # The decoder is read at most once per iteration, and only if this
+        # iteration still has something to produce: fully done -> no read at
+        # all, sidecars or prediction (or both) -> exactly one.
+        artifact = None
+
+        # Before the "already done" skip below: a run whose features were
+        # already decoded would otherwise skip forever and the statistics would
+        # never appear. Only for factorized decoders -- a legacy decoder wrote
+        # its own at training time -- and only when the features are available.
+        if (factorized and training_features_paths
+                and missing_feature_statistics(decoder_path, layer, sbj, roi)):
+            artifact = load_factorized_model(model_dir)
+            _materialize_feature_statistics(
+                decoder_path, layer, sbj, roi, artifact['train_labels'],
+                feature_loader, statistics)
+
         if os.path.exists(results_dir_prediction):
             print('%s is already done. Skipped.' % analysis_id)
             continue
+
+        # Before `makedir_ifnot`: a run that cannot proceed must not leave an
+        # output directory behind, or the next, correct run would skip it.
+        if factorized and not training_features_paths:
+            raise ValueError(
+                '%s is a factorized decoder, which needs the features of the '
+                'training stimuli. Pass training_features_paths (the '
+                'decoder.features.paths of the config used for training).'
+                % model_dir)
 
         makedir_ifnot(results_dir_prediction)
 
@@ -127,16 +330,10 @@ def featdec_predict(
 
         print('Elapsed time (data preparation): %f' % (time() - start_time))
 
-        # Model directory
-        # ---------------
-        model_dir = os.path.join(decoder_path, layer, sbj, roi, 'model')
-
         # Preprocessing
         # -------------
         brain_mean = load_array(os.path.join(model_dir, 'x_mean.mat'), key='x_mean')  # shape = (1, n_voxels)
         brain_norm = load_array(os.path.join(model_dir, 'x_norm.mat'), key='x_norm')  # shape = (1, n_voxels)
-        feat_mean = load_array(os.path.join(model_dir, 'y_mean.mat'), key='y_mean')  # shape = (1, shape_features)
-        feat_norm = load_array(os.path.join(model_dir, 'y_norm.mat'), key='y_norm')  # shape = (1, shape_features)
 
         brain = (brain - brain_mean) / brain_norm
 
@@ -146,19 +343,16 @@ def featdec_predict(
 
         start_time = time()
 
-        test = ModelTest(None, brain)
-        test.model_format = 'pickle'
-        test.model_path = model_dir
-        test.dtype = np.float32
-        test.chunk_axis = chunk_axis
-
-        feat_pred = test.run()
+        if factorized:
+            if artifact is None:
+                artifact = load_factorized_model(model_dir)
+            feat_pred = _predict_factorized(
+                artifact, model_dir, brain, layer, chunk_axis, feature_loader)
+        else:
+            print('Legacy decoder format detected in %s' % model_dir)
+            feat_pred = _predict_legacy(model_dir, brain, chunk_axis)
 
         print('Total elapsed time (prediction): %f' % (time() - start_time))
-
-        # Postprocessing
-        # --------------
-        feat_pred = feat_pred * feat_norm + feat_mean
 
         # Save results
         # ------------
@@ -182,6 +376,8 @@ def featdec_predict(
         print('Elapsed time (saving results): %f' % (time() - start_time))
 
         distcomp.unlock(analysis_id)
+
+    feature_loader.release()
 
     print('%s finished.' % analysis_name)
 
@@ -216,6 +412,13 @@ if __name__ == '__main__':
     average_sample = cfg["decoded_feature"]["parameters"]["average_sample"]
     excluded_labels = cfg.decoded_feature.fmri.get("exclude_labels", [])
 
+    # Features of the training stimuli. The factorized decoder references them
+    # instead of storing a copy, so prediction needs them too.
+    training_features_paths = cfg.decoded_feature.decoder.get(
+        "training_features_paths", None)
+    if training_features_paths is None:
+        training_features_paths = cfg["decoder"]["features"]["paths"]
+
     featdec_predict(
         test_fmri_data,
         decoder_path,
@@ -227,5 +430,6 @@ if __name__ == '__main__':
         excluded_labels=excluded_labels,
         average_sample=average_sample,
         chunk_axis=cfg["decoder"]["parameters"]["chunk_axis"],
+        training_features_paths=training_features_paths,
         analysis_name=analysis_name
     )
