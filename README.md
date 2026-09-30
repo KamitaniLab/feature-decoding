@@ -96,11 +96,6 @@ $ uv sync --group dev
 $ uv run pytest
 ```
 
-`tests/data/golden/` holds regression fixtures recording the numerical output of
-the decoding pipeline. Regenerate them with
-`uv run python -m tests.generate_golden` only when the expected output is meant
-to change, and say so explicitly in the commit message.
-
 ## References
 
 - Horikawa and Kamitani (2017) Generic decoding of seen and imagined objects using hierarchical visual features. *Nature Communications* 8:15037. https://www.nature.com/articles/ncomms15037

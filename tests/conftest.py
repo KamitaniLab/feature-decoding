@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from tests.helpers import synthetic
-
-GOLDEN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          'data', 'golden')
 
 
 @pytest.fixture(autouse=True)

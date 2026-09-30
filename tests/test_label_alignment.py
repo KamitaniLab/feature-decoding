@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from tests.helpers import legacy_ridge, pipeline
+from tests.helpers import legacy_ridge
 
 
 def test_assignment_index_maps_every_trial_to_its_stimulus(dataset):
@@ -56,7 +56,6 @@ def test_expansion_repeats_feature_rows_per_trial(dataset):
 def test_trial_order_does_not_matter_for_the_fitted_decoder(dataset,
                                                             tmp_path):
     """Permuting (brain trial, label) pairs together leaves predictions intact."""
-    from tests.helpers import synthetic
 
     layer, subject, roi = 'fc_like', 'sub-01', 'VC'
     brain = dataset.brain(subject, roi, 'train')

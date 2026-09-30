@@ -31,9 +31,6 @@ addopts = "-ra"
 # so the repository root has to be importable. `pythonpath` states that
 # explicitly instead of relying on pytest's implicit rootdir insertion.
 pythonpath = ["."]
-markers = [
-    "slow: tests that take more than a few seconds",
-]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",

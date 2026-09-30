@@ -27,7 +27,6 @@ real scripts (see ``tests/test_legacy_reference.py``).
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence
-import copy
 
 import numpy as np
 from sklearn.linear_model import Ridge
@@ -159,6 +158,3 @@ def single_trial_labels(labels: Sequence[str]) -> List[str]:
     """Output labels used by ``predict_feature`` when ``average_sample`` is off."""
     return ['sample{:06}-{}'.format(i + 1, lb) for i, lb in enumerate(labels)]
 
-
-def clone_trained(trained: Dict[str, Any]) -> Dict[str, Any]:
-    return copy.deepcopy(trained)

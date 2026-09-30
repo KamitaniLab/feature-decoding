@@ -14,7 +14,7 @@ import pickle
 
 import numpy as np
 
-from tests.helpers import legacy_ridge, pipeline
+from tests.helpers import pipeline
 
 ALPHA = 100
 

@@ -1,7 +1,7 @@
 """Run the real training / prediction scripts on a synthetic dataset.
 
-Shared by the tests and by ``tests/generate_golden.py`` so that the golden
-fixtures and the tests exercise exactly the same code path.
+Shared by the tests so that every one of them exercises the same code path the
+command line does.
 """
 
 from __future__ import annotations
